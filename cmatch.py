@@ -12,6 +12,7 @@ from futils import timeit
 from tqdm import tqdm
 
 from matching import Library, Sequence, match_library
+from visualise import visualise
 
 import plac
 
@@ -165,11 +166,24 @@ def match(template, threshold=0.99, *targets):
         libs = get_slices_libs(template)
         libs_to_match = libs["construct"]  # name of the fake primer
         matches = match_libs(sq, libs_to_match, threshold=threshold)
+        #print(f'matches are {matches}')
+        continue_reconstruct = True  ## Only continue with reconstruction if we have identified each part
+        for match in matches:
+            if match["candidates"]:
+                continue
+            else:
+                match["candidates"] = 'Match not found with threshold ' + str(threshold)
+                continue_reconstruct = False
+                
         json_to_output["matches"] = matches
         r.append(json_to_output)
+        #print(r)    
     s = json.dumps(r, indent=2, separators=(",", ":"))
-    reconstruction_result = reconstruct(r)
-    ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
+    if continue_reconstruct:
+        reconstruction_result = reconstruct(r)
+        ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
+    else:
+        ss = s
 
     return ss
 
@@ -183,6 +197,7 @@ def main(template, threshold=0.99, *targets):
     """
     result = match(template, threshold, *targets)
     print(result)
+    visualise(result, template)
 
 
 if __name__ == "__main__":
