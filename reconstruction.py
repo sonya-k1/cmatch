@@ -76,9 +76,10 @@ def reconstruct(matches):
     """
     # Read the JSON file with all the matches to reconstruct
     # targets = read_matches(matches)
-
+    errors = []
     # Read the input list directly
     targets = matches
+    # print(f'matches: {matches}')
     target_reconstructions = []
 
     # Reconstruct each target
@@ -112,36 +113,48 @@ def reconstruct(matches):
                     new = pa.copy()
                     new.append(e)
                     np.append(new)
-            #pprint(np)
+            # pprint(f'NP: {np}')
             # Prune
             paths = []
 
             #print("\nDepth:", i)
             #print("\tnb paths:", len(np))
+            
             for p in np:
-                #print("Path:", p)
-                #print(p[i - 1]["end"], p[i]["start"])
+                # print("Path:", p)
+                # print(p[i - 1]["end"], p[i]["start"])
                 if p[i - 1]["end"] <= p[i]["start"]:
                     #print("\tADDDDING:", p)
                     paths.append(p)
+                else:
+                    errors = f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases '
             #print("\tafter pruning:", len(paths))
         scores = compute_scores(paths)
         names = construct_names(paths)
+        print(f'paths: {paths}')
+
         r = []
-        for i in range(len(paths)):
-            d = {
-                "target": target["target"],
-                "reconstruct": names[i],
-                "score": scores[i],
-                "path": paths[i],
-            }
-            r.append(d)
-        target_reconstructions.append(r)
-        rep = []
-        for rr in target_reconstructions:
-            w = sorted( rr, key=lambda d: d["score"], reverse=True)
-            rep.append(w[0])
-    return rep 
+        if paths!=[]:
+            for i in range(len(paths)):
+                d = {
+                    "target": target["target"],
+                    "reconstruct": names[i],
+                    "score": scores[i],
+                    "path": paths[i],
+                }
+                r.append(d)
+            target_reconstructions.append(r)
+            # print(f"target reconstructions {target_reconstructions}")
+            rep = []
+            for rr in target_reconstructions:
+                w = sorted( rr, key=lambda d: d["score"], reverse=True)
+                print(w)
+                rep.append(w[0])
+
+        else:
+            rep = []
+            print('No reconstruction', errors, rep)
+    return rep, errors 
 
 
 def main():

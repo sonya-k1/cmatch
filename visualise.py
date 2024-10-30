@@ -6,16 +6,20 @@ import matplotlib.patches as patches
 # Your string output
 
 
-def visualise(json_output_data:str, json_template: str):
+def visualise_single(json_output_data:str, error_log):
 
 
     # Parse the JSON data
     data = json.loads(json_output_data)
+    print(f'Data is {data}')
     path = False # Do not plot if we do not have a reconstruction
-    if 'path' in data[0].keys():
-        path = data[0]['path']
-        with open(json_template, 'r') as f:
-            template_data = json.load(f)
+    if len(error_log) == 0:
+        if 'path' in data[0].keys():
+            path = data[0]['path']
+        else:    
+            st.error('Could not match all parts with this threshold')
+    else:
+        st.error(f"Errors: {str(error_log)}")
 
     # Function to create the visualization
     def plot_bricks(path):

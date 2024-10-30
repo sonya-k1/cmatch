@@ -12,7 +12,7 @@ from futils import timeit
 from tqdm import tqdm
 
 from matching import Library, Sequence, match_library
-from visualise import visualise
+from visualise import visualise_single
 
 import plac
 
@@ -157,7 +157,9 @@ def match(template, threshold=0.99, *targets):
     with open(template) as json_file:
         template = json.load(json_file)
     r = []
-
+    error_log = []
+    continue_reconstruct = False
+    print(targets, threshold)
     # Matching
     for target in targets:
         sq = Sequence(target)
@@ -170,34 +172,46 @@ def match(template, threshold=0.99, *targets):
         continue_reconstruct = True  ## Only continue with reconstruction if we have identified each part
         for match in matches:
             if match["candidates"]:
+                json_to_output["matches"] = matches
+                r.append(json_to_output)
                 continue
             else:
-                match["candidates"] = 'Match not found with threshold ' + str(threshold)
+                error_log.append(f'Match not found for part {match} with threshold ' + str(threshold))
                 continue_reconstruct = False
                 
-        json_to_output["matches"] = matches
-        r.append(json_to_output)
+        
         #print(r)    
     s = json.dumps(r, indent=2, separators=(",", ":"))
     if continue_reconstruct:
-        reconstruction_result = reconstruct(r)
-        ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
+        try:
+            print('Attempting reconstruct')
+            reconstruction_result, errors = reconstruct(r)
+            # print(f'Reconstruction result: {reconstruction_result, errors}')
+            if errors != []:
+                error_log.append(errors)
+            print(error_log)
+            ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
+            print("ss", ss)
+        except:
+            print('Unknown error')
+            error_log.append('Unknown Error')
+            ss = s
     else:
         ss = s
 
-    return ss
+    return ss, error_log
 
 
 @plac.pos("template", "JSON construct template. Example: consruct_template.json")
 @plac.pos("targets", f"Target sequence files. Example: Sanger008.seq", type=str)
 @plac.opt("threshold", "Threshold", type=float)
-def main(template, threshold=0.99, *targets):
+def main(template, threshold=0.5, *targets):
     """
     cMatch command line tool
     """
-    result = match(template, threshold, *targets)
-    print(result)
-    visualise(result, template)
+    result, error_log = match(template, threshold, *targets)
+    print(result, error_log)
+    visualise_single(result, error_log)
 
 
 if __name__ == "__main__":
