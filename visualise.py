@@ -8,7 +8,7 @@ import matplotlib.patches as patches
 
 def visualise_single(json_output_data:str, error_log):
 
-
+    st.title("Matching Visualization")
     # Parse the JSON data
     data = json.loads(json_output_data)
     print(f'Data is {data}')
@@ -21,9 +21,10 @@ def visualise_single(json_output_data:str, error_log):
     else:
         st.error(f"Errors: {str(error_log)}")
 
+    
     # Function to create the visualization
     def plot_bricks(path):
-        fig, ax = plt.subplots(figsize=(10, 2))  # Adjust figure size as necessary
+        fig, ax = plt.subplots(figsize=(5, 1))  # Adjust figure size as necessary
         
         # Colors for each part (name) - can customize more if needed
         colors = {
@@ -52,16 +53,18 @@ def visualise_single(json_output_data:str, error_log):
             ax.add_patch(rect)
             
             # Alternate y-position for labels to prevent overlap
-            label_y_pos = y_pos + 0.7 if i % 3 == 0 else (y_pos + 1.0 if i % 3 == 1 else y_pos + 1.3)
+            # label_y_pos = y_pos + 0.7 if i % 3 == 0 else (y_pos + 1.0 if i % 3 == 1 else y_pos + 1.3)
+            label_y_pos = y_pos + 1
             
             # Label with name and score (name on the first line, score on the second line)
             plt.text(start + length/2, label_y_pos, f'{name}\n({score})', 
-                    horizontalalignment='center', verticalalignment='center', fontsize=8, color='black')
+                    horizontalalignment='center', verticalalignment='center', fontsize=6, color='black')
         
         # Set plot limits and labels
         ax.set_xlim(0, path[-1]['end'] + 100)
         ax.set_ylim(0, 2)
         ax.set_xlabel("Position")
+        ax.set_ylabel("Part name and c-match score", fontsize = 8)
         ax.set_yticks([])  # Hide y-axis
 
         # Hide spines
@@ -71,8 +74,6 @@ def visualise_single(json_output_data:str, error_log):
 
         return fig
 
-    # Streamlit app code
-    st.title("Matching Visualization")
 
     if path:   
         # Generate the plot using the path data
