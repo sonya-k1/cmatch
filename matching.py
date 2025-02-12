@@ -245,9 +245,30 @@ class Sequence:
         self.filetype = basename.split(".")[1]
         self.filename = basename
         # self.sequence = Seq.Seq( read_file(filename).strip(whitespace)).reverse_complement()  # remove shit form string
-        self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
+        if self.filetype.lower() == "fastq":
+            # Parse FASTQ to extract sequences only
+            self.sequence = self._extract_fastq_sequence(filename)
+        else:
+            # Handle other file formats
+            self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
+        
+        self.length = len(self.sequence)
+        
+        # self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
         # self.trace = self.get_trace()
         self.length = len(self.sequence)
+        # breakpoint()
+    def _extract_fastq_sequence(self, filename: str) -> Seq.Seq:
+        """
+        Extracts sequence data from a FASTQ file.
+        """
+        sequences = []
+        with open(filename, "r") as file:
+            for i, line in enumerate(file):
+                if i % 4 == 1:  # Sequence line in FASTQ (line 2, 6, 10, etc.)
+                    sequences.append(line.strip())
+        # Join all sequences (if multiple reads are in the file)
+        return Seq.Seq("".join(sequences))
 
     def __repr__(self):
         """
@@ -321,6 +342,7 @@ class Library:
         self.name = library_template["name"]
         self.repository = library_template["repository"]
         for part in library_template["parts"]:
+            # print('part:  ', part)
             self.parts.append(Part(part, self.type, self.repository))
 
     def __repr__(self):
@@ -440,6 +462,7 @@ def match_library(
     """
     library_candidates = []
     for part in library.parts:
+        # print('Library part: ', part)
         part_candidates = match_part(sequence, part, threshold, direction53)
         if part_candidates:
             library_candidates.append(part_candidates)
