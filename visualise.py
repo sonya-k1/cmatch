@@ -9,7 +9,8 @@ import pandas as pd
 
 def visualise_single(json_output_data:str, error_log):
 
-    st.title("Matching Visualization")
+    st.title("Visualisation of single cMatch reconstruct")
+
     # Parse the JSON data
     data = json.loads(json_output_data)
     # print(f'Data is {data}')
@@ -103,17 +104,21 @@ def visualise_single(json_output_data:str, error_log):
 
 # Function to visualize multiple constructs' score distribution
 def visualise_distribution(result_json:str, error_log):
-    st.title("Probability Distribution of Similarity Scores")
-
+    st.title("Visualisation of multiple cMatch Scores")
+    # breakpoint()
     # Parse JSON input
     data = json.loads(result_json)
     # data = result_json # if data already parsed in cmatch
+    # print('Data is: ', data)
     
-    
-    
+    # if type(data)=='list':
+    #     breakpoint()
+    # elif type(data)!='dict':
+    #     breakpoint()
     # Extract scores
     records = []
-    for entry in data[0]:
+    for entry in data:
+        # print('entry:', entry)
         target = entry["target"]
         overall_score = entry["score"]
         
@@ -134,19 +139,43 @@ def visualise_distribution(result_json:str, error_log):
 
     # Plot KDE (Probability Distribution)
     # st.subheader("cMatch Score Probability Distribution (KDE)")
-    st.subheader('Histogram of cMatch scores')
+    # st.subheader('Histogram of cMatch scores')
     fig, ax = plt.subplots(figsize=(8, 4))
     plt.figure(figsize=(8, 6))
-    sns.histplot(df['overall_score'], bins=10, kde=False, color='blue', edgecolor='black', ax=ax)
+    sns.histplot(df['overall_score'], bins=100, kde=False, color='blue', edgecolor='black', ax=ax)
 
 
     # sns.kdeplot(df["overall_score"], fill=True, label="Overall Score Distribution", ax=ax)
     ax.set_xlabel("cMatch Score")
     ax.set_ylabel("Frequency")
-    ax.set_title("Probability Distribution of Similarity Scores")
+    ax.set_title("Frequency Distribution of Similarity Scores")
     st.pyplot(fig)
-    if len(error_log) > 0:
-        st.text(f"Errors: {str(error_log)}")
+    st.text('Overlap tolerance: 50 bases')
+    # if len(error_log) > 0:
+    #     st.text(f"Errors: {str(error_log)}")
  
+def plot_error_types(errors_json):
+    """
+    Function to parse errors, count occurrences of each error type, and plot a bar chart using Seaborn and Streamlit.
+    
+    Args:
+        errors_json (str): JSON string of error data.
 
+    """
+    errors_list = json.loads(errors_json)
+
+    error_messages = [error['errors'] for sublist in errors_list for error in sublist]
+
+    
+    df = pd.DataFrame({'Error Type': error_messages})
+    error_counts = df['Error Type'].value_counts().reset_index()
+    error_counts.columns = ['Error Type', 'Count']
+
+    sns.set_theme(style="whitegrid")
+    plt.figure(figsize=(10, 6))
+    bar_plot = sns.barplot(x="Count", y="Error Type", data=error_counts, palette="viridis")
+    bar_plot.set_title("Error Types and Their Frequencies", fontsize=16)
+    bar_plot.set_xlabel("Count", fontsize=12)
+    bar_plot.set_ylabel("Error Type", fontsize=12)
+    st.pyplot(plt)
 
