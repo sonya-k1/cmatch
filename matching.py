@@ -245,6 +245,7 @@ class Sequence:
         self.filetype = basename.split(".")[1]
         self.filename = basename
         # self.sequence = Seq.Seq( read_file(filename).strip(whitespace)).reverse_complement()  # remove shit form string
+        # breakpoint()
         if self.filetype.lower() == "fastq":
             # Parse FASTQ to extract sequences only
             self.sequence = self._extract_fastq_sequence(filename)
@@ -252,23 +253,21 @@ class Sequence:
             # Handle other file formats
             self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
         
-        self.length = len(self.sequence)
-        
         # self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
         # self.trace = self.get_trace()
         self.length = len(self.sequence)
         # breakpoint()
     def _extract_fastq_sequence(self, filename: str) -> Seq.Seq:
         """
-        Extracts sequence data from a FASTQ file.
+        Extracts sequence data from a FASTQ file. TODO: deal with multiple sequences
         """
         sequences = []
         with open(filename, "r") as file:
             for i, line in enumerate(file):
-                if i % 4 == 1:  # Sequence line in FASTQ (line 2, 6, 10, etc.)
+                if i == 1:  # TODO: Use % to loop through multiple sequences
                     sequences.append(line.strip())
-        # Join all sequences (if multiple reads are in the file)
-        return Seq.Seq("".join(sequences))
+        
+        return Seq.Seq("".join(sequences)) # TODO: change this to create individual seqs maybe? Joining doesn't make sense here
 
     def __repr__(self):
         """
