@@ -35,7 +35,7 @@ def construct_names(paths):
 
 
 @timeit
-def reconstruct(matches):
+def reconstruct(matches, overlap=50):
     """
     Reconstruction
 
@@ -76,85 +76,153 @@ def reconstruct(matches):
     """
     # Read the JSON file with all the matches to reconstruct
     # targets = read_matches(matches)
-    errors = []
+   
     # Read the input list directly
     targets = matches
-    # print(f'matches: {matches}')
+    print(f' length of input matches: {len(targets)}')
     target_reconstructions = []
+    total_result = []
+    total_errors = []
 
     # Reconstruct each target
     for target in targets:
-        #print("Target:", target["target"])
+        print("Target:", target["target"])
         libs = target["matches"]
         candidates = []
+        result = []
+        errors = []
 
         # Root
         paths = []
-        for e in libs[0]["candidates"]:
-            paths.append([e])
-        #print("\tPAAAA", paths)
-
-        #print(strftime("%Y%m%d-%H%M%S"))
-        #print("Depth:", 0)
-        #print("\tnb paths:", len(paths))
-
-        for i in range(1, len(libs), 1):
-            # Add new lib
-            np = []
-            for pa in paths:
-                #print(libs[i]['candidates'])
-                aa = sorted(
-                    libs[i]["candidates"], key=lambda d: d["score"], reverse=True
-                )
-                #aa = aa[0:1]
-                #print("aa:", aa)
-                # TODO verify highest score
-                for e in aa:
-                    new = pa.copy()
-                    new.append(e)
-                    np.append(new)
-            # pprint(f'NP: {np}')
-            # Prune
-            paths = []
-
-            #print("\nDepth:", i)
-            #print("\tnb paths:", len(np))
+        if len(libs[0]["candidates"])==0:
+            print(f'No candidate for part: {libs[0]["library"]}')
+            d = {
+                "target": target["target"],
+                "reconstruct": 'failed reconstruction',
+                "score": 0,
+                "path": None,
+                "errors": f'No candidate for part: {libs[0]["library"]}'
+                }
+            errors.append(d)
+            print('breaking on lib[0] for target: ', target["target"] )
             
-            for p in np:
-                # print("Path:", p)
-                # print(p[i - 1]["end"], p[i]["start"])
-                if p[i - 1]["end"] <= p[i]["start"]:
-                    #print("\tADDDDING:", p)
-                    paths.append(p)
+        else:
+            for e in libs[0]["candidates"]:
+                paths.append([e])
+            # print("\tPAAAA", paths)
+
+            #print(strftime("%Y%m%d-%H%M%S"))
+            #print("Depth:", 0)
+            #print("\tnb paths:", len(paths))
+
+            for i in range(1, len(libs), 1):
+                if len(libs[i]["candidates"])==0:
+                    print(f'No candidate for part: {libs[i]["library"]}')
+                    d = {
+                        "target": target["target"],
+                        "reconstruct": 'failed reconstruction',
+                        "score": 0,
+                        "path": None,
+                        "errors": f'No candidate for part: {libs[i]["library"]}'
+                        }
+                    errors.append(d)
+                    paths = [] # Discard incomplete paths if we have any parts with 0 matches
+                    print(f'breaking on {libs[i]["library"]} lib for {target["target"]}')
+                    break
                 else:
-                    errors = f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases '
-            #print("\tafter pruning:", len(paths))
-        scores = compute_scores(paths)
-        names = construct_names(paths)
-        print(f'paths: {paths}')
+                # Add new lib
+                    np = []
+                    for pa in paths:
+                        #print(libs[i]['candidates'])
+                        aa = sorted(
+                            libs[i]["candidates"], key=lambda d: d["score"], reverse=True
+                        )
+                        #aa = aa[0:1]
+                        #print("aa:", aa)
+                        # TODO verify highest score
+                        for e in aa:
+                            new = pa.copy()
+                            new.append(e)
+                            np.append(new)
+                    # pprint(f'NP: {np}')
+                    # Prune
+                    paths = []
+
+                    # print("\nDepth:", i)
+                    # print("\tnb paths:", len(np))
+                    
+                    for p in np:
+                        # print("Path:", p)
+                        # print(p[i - 1]["end"], p[i]["start"])
+                        if p[i - 1]["end"] <= p[i]["start"] + overlap:
+                            # print("\tADDDDING:", p)
+                            paths.append(p)
+                        # else:
+                            # if i == 3:
+                                # print(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
+                                # errors.append(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
+                    # print('path number: ', len(paths))
+                    # Define result for reconstruction failures due to overlaps
+                    if paths==[]:
+                        d = {
+                        "target": target["target"],
+                        "reconstruct": 'failed reconstruction',
+                        "score": 0,
+                        "path": None,
+                        "errors": 'Bases Overlapping or order is wrong'
+                        }
+                        errors.append(d)
+                        print('Error logged for target: ', target['target'])
+                        print(' breaking on overlaps for: ', target["target"])
+                        break
+                        
+                #print("\tafter pruning:", len(paths))
+            print('computing scores for target: ', target['target'])
+            scores = compute_scores(paths)
+            names = construct_names(paths)
+            # print(f'paths: {paths}')
 
         r = []
         if paths!=[]:
+            # errors = [] # Clear any existing errors from broken paths
+            print('target: ', target['target'])
             for i in range(len(paths)):
+                # print('path found for target: ', target['target'])
                 d = {
                     "target": target["target"],
                     "reconstruct": names[i],
                     "score": scores[i],
                     "path": paths[i],
+                    "errors": None
                 }
                 r.append(d)
             target_reconstructions.append(r)
+            
             # print(f"target reconstructions {target_reconstructions}")
             rep = []
             for rr in target_reconstructions:
                 w = sorted( rr, key=lambda d: d["score"], reverse=True)
-                print(w)
+                # print(w)
                 rep.append(w[0])
+                print('ADDING PATH')
+            total_result += rep # record any failed matching/reconstruction
 
         else:
-            rep = []
-            print('No reconstruction', errors, rep)
-    return rep, errors 
+                # rep=[]
+                # d = {
+                #     "target": target["target"],
+                #     "reconstruct": 'failed reconstruction',
+                #     "score": 0,
+                #     "path": None,
+                #     "errors": errors
+                #     }
+                # r.append(d)
+                # rep.append(r)
+            total_result += errors
+            total_errors += errors
+           
+            print('No reconstruction for target: ', target['target'])
+    return total_result, total_errors    
 
 
 def main():

@@ -12,7 +12,7 @@ from futils import timeit
 from tqdm import tqdm
 
 from matching import Library, Sequence, match_library
-from visualise import visualise_single
+from visualise import visualise_single, visualise_distribution, plot_error_types
 
 import plac
 
@@ -32,6 +32,8 @@ def match_libs(seq, libs, threshold=0.5):
         pop["library"] = lib["name"]
         # See algo1_lycopene for the parameter below in the template
         # threshold = lib["score_threshold"]
+        # print('pop: ', pop)       
+        # breakpoint()
         candidates = match_library(seq, Library(lib), threshold, direction53=True)
         cl = []
         for candidate in candidates:
@@ -158,48 +160,113 @@ def match(template, threshold=0.99, *targets):
         template = json.load(json_file)
     r = []
     error_log = []
-    continue_reconstruct = False
-    print(targets, threshold)
+    # continue_reconstruct = False
+    # print(targets, threshold)
     # Matching
     for target in targets:
         sq = Sequence(target)
         json_to_output = {}
         json_to_output["target"] = sq.name
+        print('FINDING MATCHES FOR: ',sq.name)
         libs = get_slices_libs(template)
+        # print('libs:  ', libs)
         libs_to_match = libs["construct"]  # name of the fake primer
+        # print('libs:  ', libs_to_match)
+        
         matches = match_libs(sq, libs_to_match, threshold=threshold)
-        #print(f'matches are {matches}')
-        continue_reconstruct = True  ## Only continue with reconstruction if we have identified each part
-        for match in matches:
-            if match["candidates"]:
-                json_to_output["matches"] = matches
-                r.append(json_to_output)
-                continue
-            else:
-                error_log.append(f'Match not found for part {match} with threshold ' + str(threshold))
-                continue_reconstruct = False
+        # print(f'matches are {matches}')
+        # continue_reconstruct = True  ## Only continue with reconstruction if we have identified each part
+        # for match in matches:
+        #     if match["candidates"]:
+        #         json_to_output["matches"] = matches
+        #         r.append(json_to_output)
+        #         continue
+        #     else:
+        #         error_log.append(f'Match not found for part {match} with threshold ' + str(threshold))
+        #         target_name = sq.name
+        #         continue_reconstruct = False
+        json_to_output["matches"] = matches
+        r.append(json_to_output)
                 
         
-        #print(r)    
-    s = json.dumps(r, indent=2, separators=(",", ":"))
-    if continue_reconstruct:
-        try:
-            print('Attempting reconstruct')
-            reconstruction_result, errors = reconstruct(r)
-            # print(f'Reconstruction result: {reconstruction_result, errors}')
-            if errors != []:
-                error_log.append(errors)
-            print(error_log)
-            ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
-            print("ss", ss)
-        except:
-            print('Unknown error')
-            error_log.append('Unknown Error')
-            ss = s
-    else:
-        ss = s
+        # print('length of matches is: ', len(r)) 
+    # breakpoint()   
+    # s = json.dumps(r, indent=2, separators=(",", ":"))
+    # total_results = []
+    # if continue_reconstruct:
+    try:
+        print('Attempting reconstruct')
+        print('length of input r:', len(r))
+        reconstruction_result, errors = reconstruct(r)
+        # print(f'Reconstruction result: {reconstruction_result, errors}')
+        if errors != []:
+            error_log.append(errors)
+        # print('error log: ',error_log)
+        # total_results.append(reconstruction_result)
+        print('length of reconstruction result: ', len(reconstruction_result))
+        ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
+        # print("ss", ss)
+    except Exception as e:
+        print('Unknown error: ', e)
+        error_log.append(f'Unknown Error: {e}')
+        ss = {}
+        # ss = s
+    # else:
+    #     # ss = s
+    #     failed_match_result = {
+    #                 "target": 'failed reconstruction',
+    #                 "reconstruct": None,
+    #                 "score": 0,
+    #                 "path": None,
+    #             }
+    #     total_results.append(failed_match_result)
+    
+    # ss = json.dumps(total_results, indent=2, separators=(",", ":"))
+    errors_json = json.dumps(error_log, indent=2, separators=(",", ":"))
 
-    return ss, error_log
+    return ss, errors_json
+
+
+def remove_duplicates(result_json_str):
+    # Ensure result_json is a Python list, not a string
+    if isinstance(result_json_str, str):
+        result_json = json.loads(result_json_str)  # Convert from string to Python list
+    else:
+        result_json = result_json_str
+
+    unique_results = []
+    seen = set()
+
+    for entry in result_json:
+        # Ensure 'path' is a list before processing
+
+        if entry.get('path', None) is None:
+            entry['score'] = 0
+
+        if not isinstance(entry.get('path', []), list):
+            continue  # Skip invalid entries
+
+        # Convert 'path' to a tuple of tuples (to make it hashable)
+        path_tuple = tuple(
+            (p['name'], p['score'], p['start'], p['length'], p['end']) for p in entry['path']
+        )
+
+        # Create a hashable representation of the entry
+        entry_tuple = (
+            entry['target'],
+            entry['reconstruct'],
+            entry['score'],
+            path_tuple
+        )
+
+        # If not seen, add to unique list and mark as seen
+        if entry_tuple not in seen:
+            seen.add(entry_tuple)
+            unique_results.append(entry)
+
+    return unique_results
+
+
 
 
 @plac.pos("template", "JSON construct template. Example: consruct_template.json")
@@ -209,9 +276,16 @@ def main(template, threshold=0.5, *targets):
     """
     cMatch command line tool
     """
+    print('Number of input targets: ', len(targets))
     result, error_log = match(template, threshold, *targets)
-    print(result, error_log)
-    visualise_single(result, error_log)
+    # new_result = remove_duplicates(result)
+    print('result:', result, 'error log:', error_log)
+    # print('Result: ', result,'\n Error Log: ', error_log, '\n Filtered result: ', new_result)
+    if len(targets) ==1:
+        visualise_single(result, error_log)
+    # breakpoint()
+    visualise_distribution(result, error_log)
+    plot_error_types(error_log)
 
 
 if __name__ == "__main__":
