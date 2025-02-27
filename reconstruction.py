@@ -35,7 +35,7 @@ def construct_names(paths):
 
 
 @timeit
-def reconstruct(matches, overlap=50):
+def reconstruct(matches, overlap=0):
     """
     Reconstruction
 
@@ -80,7 +80,6 @@ def reconstruct(matches, overlap=50):
     # Read the input list directly
     targets = matches
     print(f' length of input matches: {len(targets)}')
-    target_reconstructions = []
     total_result = []
     total_errors = []
 
@@ -88,8 +87,9 @@ def reconstruct(matches, overlap=50):
     for target in targets:
         print("Target:", target["target"])
         libs = target["matches"]
-        candidates = []
-        result = []
+        target_reconstructions = []
+        # candidates = []
+        # result = []
         errors = []
 
         # Root
@@ -150,7 +150,7 @@ def reconstruct(matches, overlap=50):
 
                     # print("\nDepth:", i)
                     # print("\tnb paths:", len(np))
-                    
+                    # breakpoint()
                     for p in np:
                         # print("Path:", p)
                         # print(p[i - 1]["end"], p[i]["start"])
@@ -168,7 +168,7 @@ def reconstruct(matches, overlap=50):
                         "target": target["target"],
                         "reconstruct": 'failed reconstruction',
                         "score": 0,
-                        "path": None,
+                        "path": np[0], # feed in highest scoring path for errors
                         "errors": 'Bases Overlapping or order is wrong'
                         }
                         errors.append(d)

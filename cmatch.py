@@ -12,7 +12,7 @@ from futils import timeit
 from tqdm import tqdm
 
 from matching import Library, Sequence, match_library
-from visualise import visualise_single, visualise_distribution, plot_error_types
+from visualise import visualise_single, visualise_distribution, plot_error_types, visualise_parts, plot_3d, plot_3d_multiple_scores
 
 import plac
 
@@ -197,7 +197,7 @@ def match(template, threshold=0.99, *targets):
     try:
         print('Attempting reconstruct')
         print('length of input r:', len(r))
-        reconstruction_result, errors = reconstruct(r)
+        reconstruction_result, errors = reconstruct(r, overlap=10)
         # print(f'Reconstruction result: {reconstruction_result, errors}')
         if errors != []:
             error_log.append(errors)
@@ -272,20 +272,27 @@ def remove_duplicates(result_json_str):
 @plac.pos("template", "JSON construct template. Example: consruct_template.json")
 @plac.pos("targets", f"Target sequence files. Example: Sanger008.seq", type=str)
 @plac.opt("threshold", "Threshold", type=float)
-def main(template, threshold=0.5, *targets):
+def main(template, threshold=0.7, *targets):
     """
     cMatch command line tool
     """
+    start_time = time.time()
     print('Number of input targets: ', len(targets))
     result, error_log = match(template, threshold, *targets)
     # new_result = remove_duplicates(result)
-    print('result:', result, 'error log:', error_log)
-    # print('Result: ', result,'\n Error Log: ', error_log, '\n Filtered result: ', new_result)
-    if len(targets) ==1:
-        visualise_single(result, error_log)
+    # print('result:', result, 'error log:', error_log, 'len result: ', len(result))
     # breakpoint()
+    # print('Result: ', result,'\n Error Log: ', error_log, '\n Filtered result: ', new_result)
+# if len(targets) ==1:
+#     visualise_single(result, error_log)
+    # breakpoint()
+    plot_3d_multiple_scores(result)
     visualise_distribution(result, error_log)
     plot_error_types(error_log)
+    # visualise_parts(result)
+    execution_time = time.time() - start_time
+    print(f'Execution Time: {execution_time:.4f} seconds')
+
 
 
 if __name__ == "__main__":
