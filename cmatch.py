@@ -7,12 +7,15 @@ from os import path
 from pathlib import Path
 import time
 from reconstruction import reconstruct
+import math
+import streamlit as st
 
 from futils import timeit
 from tqdm import tqdm
 
 from matching import Library, Sequence, match_library
-from visualise import visualise_single, visualise_distribution, plot_error_types, visualise_parts, plot_3d, plot_3d_multiple_scores
+from visualise import visualise_distribution, plot_error_types, visualise_parts, plot_3d_multiple_scores
+from store_gfp_outputs import store_match_results
 
 import plac
 
@@ -151,7 +154,7 @@ def iter_all_seq(
         json.dump(r, filename, indent=2, separators=(",", ":"))
 
 
-def match(template, threshold=0.99, *targets):
+def match(template, threshold, overlap, *targets):
     """
     Match
     """
@@ -162,9 +165,12 @@ def match(template, threshold=0.99, *targets):
     error_log = []
     # continue_reconstruct = False
     # print(targets, threshold)
+
+
     # Matching
     for target in targets:
         sq = Sequence(target)
+        
         json_to_output = {}
         json_to_output["target"] = sq.name
         print('FINDING MATCHES FOR: ',sq.name)
@@ -197,7 +203,7 @@ def match(template, threshold=0.99, *targets):
     try:
         print('Attempting reconstruct')
         print('length of input r:', len(r))
-        reconstruction_result, errors = reconstruct(r, overlap=10)
+        reconstruction_result, errors = reconstruct(r, overlap=overlap)
         # print(f'Reconstruction result: {reconstruction_result, errors}')
         if errors != []:
             error_log.append(errors)
@@ -276,22 +282,35 @@ def main(template, threshold=0.7, *targets):
     """
     cMatch command line tool
     """
+    st.set_page_config(layout="wide")
+    # accuracy= 90
+    
+
     start_time = time.time()
-    print('Number of input targets: ', len(targets))
-    result, error_log = match(template, threshold, *targets)
-    # new_result = remove_duplicates(result)
-    # print('result:', result, 'error log:', error_log, 'len result: ', len(result))
-    # breakpoint()
-    # print('Result: ', result,'\n Error Log: ', error_log, '\n Filtered result: ', new_result)
-# if len(targets) ==1:
-#     visualise_single(result, error_log)
-    # breakpoint()
-    plot_3d_multiple_scores(result)
-    visualise_distribution(result, error_log)
-    plot_error_types(error_log)
-    # visualise_parts(result)
-    execution_time = time.time() - start_time
-    print(f'Execution Time: {execution_time:.4f} seconds')
+
+    construct_length= 1101 # hard-coded for now
+    for overlap_pct in [3]:
+        st.title(f'Analysis of cMatch scores of sequences with substitutions only, with an overlap tolerance of {overlap_pct}% ')
+        overlap_tolerance =math.ceil(overlap_pct*construct_length/100)
+        print(f'Number of input targets: {len(targets)} \n Overlap tolerance: {overlap_pct}% ({overlap_tolerance} bases)')
+        result, error_log = match(template, threshold, overlap_tolerance, *targets)
+        # breakpoint()
+        store_match_results(result, 'cmatch_outputs/gfp_90_outputs.parquet',similarity_threshold= threshold, overlap_tolerance=f'{overlap_pct}%')
+
+
+        visualise_distribution(result, overlap_pct, plot_individual_parts=True, plot_over_acc_levels=True)
+        st.title('')
+        plot_3d_multiple_scores(result, overlap_pct, threshold)
+        plot_error_types(error_log, overlap_pct)
+        st.title('')
+        st.title('')
+        st.title('')
+        st.title('')
+        st.title('')
+
+        # visualise_parts(result)
+        execution_time = time.time() - start_time
+        print(f'Execution Time: {execution_time:.4f} seconds')
 
 
 

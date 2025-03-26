@@ -10,6 +10,7 @@ import colorsys
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from statistics import geometric_mean
+import re
 
 
 
@@ -213,60 +214,131 @@ def visualise_parts(json_output_data:str):
 
 
 
-# Function to visualize multiple constructs' score distribution
-def visualise_distribution(result_json:str, error_log):
-    st.title("Visualisation of multiple cMatch Scores")
-    # breakpoint()
-    # Parse JSON input
+def extract_accuracy(target_name):
+    match = re.search(r'pb_gfp_(\d+)_', target_name)
+    return int(match.group(1)) if match else None
+
+def visualise_distribution(result_json: str, overlap_pct, plot_individual_parts=True, plot_over_acc_levels=True):
+    # st.title("Visualisation of multiple cMatch Scores")
     data = json.loads(result_json)
-    # data = result_json # if data already parsed in cmatch
-    # print('Data is: ', data)
     
-    # if type(data)=='list':
-    #     breakpoint()
-    # elif type(data)!='dict':
-    #     breakpoint()
-    # Extract scores
     records = []
+    part_scores = []
+    
     for entry in data:
-        # print('entry:', entry)
         target = entry["target"]
         overall_score = entry["score"]
+        accuracy = extract_accuracy(target)
         
-        # Store each result
         records.append({
             "target": target,
             "overall_score": overall_score,
-            
+            "accuracy": accuracy
         })
+        
+        # Extract part scores
+        if entry['path'] is not None:
+            for part in entry.get("path", []):
+                part_scores.append({
+                    "target": target,
+                    "part_name": part["name"],
+                    "part_score": part["score"],
+                    "accuracy": accuracy
+                })
     
     df = pd.DataFrame(records)
-    # breakpoint()
-    df.sort_values(by=['overall_score'])
+    df_parts = pd.DataFrame(part_scores)
+    
+    df.sort_values(by=['overall_score'], inplace=True)
     df_unique = df.drop_duplicates()
-
+    
     if df.empty:
         st.error("No valid data available for visualization.")
         return
+    
+    # Plot Overall Score Histograms for each Accuracy Level
+    for accuracy in sorted(df["accuracy"].unique()):
+        df_acc = df[df["accuracy"] == accuracy]
+        fig, ax = plt.subplots(figsize=(8, 4))
+        sns.histplot(df_acc['overall_score'], bins=100, kde=False, color='blue', edgecolor='black', ax=ax)
+        
+        # Calculate and plot mean/median
+        mean_val = df_acc['overall_score'].mean()
+        median_val = df_acc['overall_score'].median()
+        ax.axvline(mean_val, color='red', linestyle='dashed', label=f"Mean: {mean_val:.2f}")
+        ax.axvline(median_val, color='orange', linestyle='dashed', label=f"Median: {median_val:.2f}")
+        ax.legend()
+        
+        ax.set_xlabel("cMatch Score")
+        ax.set_ylabel("Frequency")
+        ax.set_title(f"Frequency Distribution of Overall Scores (Accuracy {accuracy})")
+        ax.set_xlim([0, 1.1])
+        ax.set_ylim([0, 50])
+        ax.set_xticks([i/10 for i in range(11)]) 
+        ax.set_yticks([i for i in range(0, 51, 5)])
+        ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+        st.pyplot(fig)
+    
+    # Plot Part Score Histograms for each Accuracy Level
+    if plot_individual_parts:
+        if not df_parts.empty:
+            for accuracy in sorted(df_parts["accuracy"].unique()):
+                df_acc_parts = df_parts[df_parts["accuracy"] == accuracy]
+                for part_name in df_acc_parts["part_name"].unique():
+                    part_df = df_acc_parts[df_acc_parts["part_name"] == part_name]
+                    
+                    fig, ax = plt.subplots(figsize=(8, 4))
+                    sns.histplot(part_df['part_score'], bins=50, kde=False, color='green', edgecolor='black', ax=ax)
+                    
+                    # Calculate and plot mean/median
+                    mean_val = part_df['part_score'].mean()
+                    median_val = part_df['part_score'].median()
+                    ax.axvline(mean_val, color='red', linestyle='dashed', label=f"Mean: {mean_val:.2f}")
+                    ax.axvline(median_val, color='orange', linestyle='dashed', label=f"Median: {median_val:.2f}")
+                    ax.legend()
+                    
+                    ax.set_xlabel("Part Score")
+                    ax.set_ylabel("Frequency")
+                    ax.set_title(f"Frequency Distribution of {part_name} Scores (Accuracy {accuracy})")
+                    ax.set_xlim([0, 1.1])
+                    ax.set_ylim([0, 50])
+                    ax.set_xticks([i/10 for i in range(11)]) 
+                    ax.set_yticks([i for i in range(0, 51, 5)])
+                    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+                    st.pyplot(fig)
+    
+    if plot_over_acc_levels:
+        # Plot Mean/Median for Overall Scores across Accuracy Levels
+        overall_stats = df.groupby("accuracy")["overall_score"].agg(["mean", "median"]).reset_index()
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(overall_stats["accuracy"], overall_stats["mean"], marker='o', linestyle='-', color='red', label='Mean')
+        ax.plot(overall_stats["accuracy"], overall_stats["median"], marker='o', linestyle='-', color='orange', label='Median')
+        ax.set_xlabel("Accuracy")
+        ax.set_ylabel("Score")
+        ax.set_title("Overall Score Mean & Median Across Accuracy Levels")
+        ax.legend()
+        ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+        st.pyplot(fig)
+        
+        # Plot Mean/Median for Each Part Score across Accuracy Levels
+        if plot_individual_parts:
+            if not df_parts.empty:
+                for part_name in df_parts["part_name"].unique():
+                    part_stats = df_parts[df_parts["part_name"] == part_name].groupby("accuracy")["part_score"].agg(["mean", "median"]).reset_index()
+                    fig, ax = plt.subplots(figsize=(8, 4))
+                    ax.plot(part_stats["accuracy"], part_stats["mean"], marker='o', linestyle='-', color='red', label='Mean')
+                    ax.plot(part_stats["accuracy"], part_stats["median"], marker='o', linestyle='-', color='orange', label='Median')
+                    ax.set_xlabel("Accuracy")
+                    ax.set_ylabel("Score")
+                    ax.set_title(f"{part_name} Score Mean & Median Across Accuracy Levels")
+                    ax.legend()
+                    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+                    st.pyplot(fig)
+    
+    st.text(f'Overlap tolerance: {overlap_pct}%')
 
-    # Plot KDE (Probability Distribution)
-    # st.subheader("cMatch Score Probability Distribution (KDE)")
-    # st.subheader('Histogram of cMatch scores')
-    fig, ax = plt.subplots(figsize=(8, 4))
-    plt.figure(figsize=(8, 6))
-    sns.histplot(df_unique['overall_score'], bins=100, kde=False, color='blue', edgecolor='black', ax=ax)
-
-
-    # sns.kdeplot(df["overall_score"], fill=True, label="Overall Score Distribution", ax=ax)
-    ax.set_xlabel("cMatch Score")
-    ax.set_ylabel("Frequency")
-    ax.set_title("Frequency Distribution of Similarity Scores")
-    st.pyplot(fig)
-    st.text('Overlap tolerance: 0 bases')
-    # if len(error_log) > 0:
-    #     st.text(f"Errors: {str(error_log)}")
  
-def plot_error_types(errors_json):
+def plot_error_types(errors_json, overlap_pct):
     """
     Function to parse errors, count occurrences of each error type, and plot a bar chart using Seaborn and Streamlit.
     
@@ -286,7 +358,7 @@ def plot_error_types(errors_json):
     sns.set_theme(style="whitegrid")
     plt.figure(figsize=(10, 6))
     bar_plot = sns.barplot(x="Count", y="Error Type", data=error_counts, palette="viridis")
-    bar_plot.set_title("Error Types and Their Frequencies", fontsize=16)
+    bar_plot.set_title(f"Error Types and Their Frequencies at Overlap tolerance of {overlap_pct}%", fontsize=16)
     bar_plot.set_xlabel("Count", fontsize=12)
     bar_plot.set_ylabel("Error Type", fontsize=12)
     st.pyplot(plt)
@@ -394,8 +466,9 @@ def generate_colors(n):
 
 
 
-def plot_3d_multiple_scores(data:str):
-    st.title("3D Plot of Genetic Part Scores")
+def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
+
+    # st.title("3D Plot of Genetic Part Scores")
 
     results = json.loads(data)
     unique_acc_values = set()  # To track unique XX values
@@ -415,24 +488,36 @@ def plot_3d_multiple_scores(data:str):
 
     # Lists to store 3D coordinates and hover info
     x_vals, y_vals, z_vals = [], [], []
-    failed_x, failed_y, failed_z = [], [], []
-    failed_hover_texts = []
+    failed_part_x, failed_part_y, failed_part_z = [], [], []
+    failed_part_hover_texts = []
     hover_texts = []
     point_colors = [] 
-    failed_colours = []
-
+    failed_part_colours = []
+    failed_overlap_x, failed_overlap_y, failed_overlap_z = [], [], []
+    failed_overlap_hover_texts = []
+    failed_overlap_colours = []
     for result in results:
         target_name = result['target']
-        acc_value = target_name.split('_')[2]  # Extract XX
+        acc_value = target_name.split('_')[2] 
 
-        if result['path'] is not None and len(result['path']) == 4:
+
+        if result['path'] is not None and result.get('errors') is None:
             path = result['path']
-            # Successful results (no change here)
             color = acc_color_map[acc_value]
-            x = geometric_mean([path[0]['score'], path[1]['score']])
-            y = path[2]['score']
-            z = path[3]['score']
+            if result.get('errors') is None:
+                color = 'green'  
+            # elif result.get('errors') == 'Bases Overlapping or order is wrong':
+            #     color = 'red'  
+            # else:
+            #     color = 'gray'  
+
+            x = path[0]['score']
+            y = path[1]['score']
             
+            try:
+                z = path[2]['score'] 
+            except:
+                breakpoint()
             x_vals.append(x)
             y_vals.append(y)
             z_vals.append(z)
@@ -442,21 +527,49 @@ def plot_3d_multiple_scores(data:str):
                 f"PBSim Accuracy: {acc_value}<br>"
                 f"cMatch Score: {result['score']}<br>"
                 f"Mean Score: {geometric_mean([x, y, z])}<br>"
-                f"Avg Score (Part 1 & 2): {x:.2f}<br>"
+                f"Combined Part Score (Part 1 & 2): {x:.2f}<br>"
                 f"Score (Part 3): {y:.2f}<br>"
-                f"Score (Part 4): {z:.2f}"
+                f"Score (Part 4): {z:.2f}<br>"
+                f"Error: {result.get('errors', 'None')}"
             )
 
         else:
-            # Failed results, assigned to (0,0,0) with jitter
-            color = acc_color_map.get(acc_value, "#808080")
-            failed_x.append(0 + np.random.uniform(0, 0.05))
-            failed_y.append(0 + np.random.uniform(0, 0.05))
-            failed_z.append(0 + np.random.uniform(0, 0.05))
-            failed_colours.append(color)
-            failed_hover_texts.append(
-                f"Target: {target_name}<br>Error: {result['errors']}"
-            )
+            if result['path'] is not None and result.get('errors')=='Bases Overlapping or order is wrong':
+                color='blue'
+                path = result.get('path', [])
+                scores = [0, 0, 0]  
+                for i, part in enumerate(path[:3]):  
+                    scores[i] = part['score']
+
+                x = scores[0]  
+                y = scores[1]  
+                z = scores[2]  
+
+                failed_overlap_x.append(x)
+                failed_overlap_y.append(y)
+                failed_overlap_z.append(z)
+                failed_overlap_colours.append(color)
+                failed_overlap_hover_texts.append(
+                    f"Target: {target_name}<br>"
+                    f"PBSim Accuracy: {acc_value}<br>"
+                    f"cMatch Score: {result['score']}<br>"
+                    f"Score (Part 1): {scores[0]:.2f}<br>"
+                    f"Score (Part 2): {scores[1]:.2f}<br>"
+                    f"Score (Part 3): {y:.2f}<br>"
+                    f"Score (Part 4): {z:.2f}<br>"
+                    f"Error: {result.get('errors', 'None')}"
+                )
+            
+            elif result['path'] is None:
+                color = acc_color_map.get(acc_value, "#808080")
+                color = 'red'
+                failed_part_x.append(0 + np.random.uniform(0, 0.05))
+                failed_part_y.append(0 + np.random.uniform(0, 0.05))
+                failed_part_z.append(0 + np.random.uniform(0, 0.05))
+                failed_part_colours.append(color)
+                failed_part_hover_texts.append(
+                    f"Target: {target_name}<br>Error: {result['errors']}"
+                )
 
 
     # Create a 3D scatter plot
@@ -470,14 +583,15 @@ def plot_3d_multiple_scores(data:str):
         hovertext=hover_texts,
         hoverinfo="text",
         marker=dict(
-            size=8,
-            color=point_colors,  # Apply gradient colors
+            size=5,
+            color="#009E73" ,
             opacity=0.8
         ),
-        showlegend=False
+        name='Successful Reconstructions',
+        showlegend=True
     ))
 
-    # Add the fixed reference point (1, 1, 1)
+
     fig.add_trace(go.Scatter3d(
         x=[1], y=[1], z=[1],
         mode='markers',
@@ -486,41 +600,55 @@ def plot_3d_multiple_scores(data:str):
         hoverinfo="text",
         marker=dict(
             size=10,
-            color='red',  # Fixed color for the reference point
+            color="#0072B2",  
             opacity=0.8
         ),
         name="Reference Point (1,1,1)"
     ))
     fig.add_trace(go.Scatter3d(
-    x=failed_x, y=failed_y, z=failed_z,
+    x=failed_part_x, y=failed_part_y, z=failed_part_z,
     mode='markers',
-    hovertext=failed_hover_texts,
+    hovertext=failed_part_hover_texts,
     hoverinfo="text",
     marker=dict(
-        size=6,
-        color=failed_colours,  
+        size=5,
+        color="#673AB7",  
+        opacity=0.6  
+    ),
+    name=f'Failed on part matching with threshold {threshold}',
+    showlegend=True
+))
+    fig.add_trace(go.Scatter3d(
+    x=failed_overlap_x, y=failed_overlap_y, z=failed_overlap_z,
+    mode='markers',
+    hovertext=failed_overlap_hover_texts,
+    hoverinfo="text",
+    marker=dict(
+        size=5,
+        color="#CC79A7",  
         opacity=0.8  
     ),
-    showlegend=False
+    name=f'Failed on reconstruction with base overlap tolerance {overlap_pct}%',
+    showlegend=True
 ))
-    for acc_value, color in acc_color_map.items():
-        fig.add_trace(go.Scatter3d(
-            x=[None], y=[None], z=[None],  
-            mode='markers',
-            marker=dict(size=10, color=color),
-            name=f"PBSim accuracy = {acc_value}"  
-        ))
+    # for acc_value, color in acc_color_map.items():
+    #     fig.add_trace(go.Scatter3d(
+    #         x=[None], y=[None], z=[None],  
+    #         mode='markers',
+    #         marker=dict(size=10, color=color),
+    #         name=f"PBSim accuracy = {acc_value}"  
+    #     ))
 
-    # Add labels to axes
+
     fig.update_layout(
         scene=dict( 
             xaxis_title="Average Score (Part 1 & 2)",
             yaxis_title="Score (Part 3)",
             zaxis_title="Score (Part 4)",
             xaxis=dict(
-            range=[0, 1],  # Keeping your custom range
+            range=[0, 1],  
             tickmode="array",
-            tickvals=[i / 10 for i in range(0, 11)],  # Extends to -0.1
+            tickvals=[i / 10 for i in range(0, 11)],  
             ticktext=[f"{i/10:.1f}" for i in range(0, 11)]
         ),
         yaxis=dict(
@@ -535,12 +663,89 @@ def plot_3d_multiple_scores(data:str):
             tickvals=[i / 10 for i in range(0, 11)],
             ticktext=[f"{i/10:.1f}" for i in range(0, 11)]
         ),
-            aspectmode="cube"
+            aspectmode="cube",
+               
+        camera=dict(
+            eye=dict(x=1.4, y=-1.4, z=1.4)  # Adjust to the midpoint between (0,0,0) and (1,1,1)
+        )
         ),
-        title="Interactive 3D Plot of Genetic Part Scores with Gradient coloring",
-        showlegend=True
+        showlegend=True,
+        autosize=False,
+        width=1000,  
+        height=700,  
+        margin=dict(l=0, r=0, b=50, t=50),
     )
+    threshold_line_color = "red"
 
-    # Display the plot in Streamlit
-    st.plotly_chart(fig)
+    fig.add_trace(go.Scatter3d(
+        x=[threshold, threshold], 
+        y=[0, 1],  
+        z=[threshold, threshold],  
+        mode='lines',
+        line=dict(color=threshold_line_color, width=3, dash='dash'),
+        showlegend=False
+    ))
+
+    fig.add_trace(go.Scatter3d(
+        x=[threshold, threshold],  
+        y=[threshold, threshold], 
+        z=[0, 1],  
+        mode='lines',
+        line=dict(color=threshold_line_color, width=3, dash='dash'),
+        showlegend=False
+
+    ))
+
+    fig.add_trace(go.Scatter3d(
+        x=[0, 1],  
+        y=[threshold, threshold],  
+        z=[threshold, threshold], 
+        mode='lines',
+        line=dict(color=threshold_line_color, width=3, dash='dash'),
+        showlegend=False
+
+    ))
+
+    plane_color = "rgba(255, 0, 0, 0.2)"  
+
+    fig.add_trace(go.Mesh3d(
+        x=[threshold, threshold, threshold, threshold],  
+        y=[0, 1, 1, 0],  
+        z=[0, 0, 1, 1],  
+        i=[0, 1, 2, 0],  
+        j=[1, 2, 3, 3],  
+        k=[2, 3, 0, 1],  
+        color=plane_color,
+        opacity=0.1,
+        name=f"Plane at x = {threshold}"
+    ))
+
+    fig.add_trace(go.Mesh3d(
+        x=[0, 1, 1, 0],  
+        y=[threshold, threshold, threshold, threshold],  
+        z=[0, 0, 1, 1],  
+        i=[0, 1, 2, 0],  
+        j=[1, 2, 3, 3],  
+        k=[2, 3, 0, 1],  
+        color=plane_color,
+        opacity=0.1,
+        name=f"Plane at y = {threshold}"
+    ))
+
+    fig.add_trace(go.Mesh3d(
+        x=[0, 1, 1, 0],  
+        y=[0, 0, 1, 1],  
+        z=[threshold, threshold, threshold, threshold],  
+        i=[0, 1, 2, 0],  
+        j=[1, 2, 3, 3],  
+        k=[2, 3, 0, 1],  
+        color=plane_color,
+        opacity=0.1,
+        name=f"Plane at z = {threshold}"
+    ))
+
+    st.plotly_chart(fig, use_container_width=True)
+    st.text(f'Number of constructs failing the similarity threshold {threshold} for any of the parts: {len(failed_part_x)}/{len(results)} \n'
+            f'Number of constructs failing reconstruction using overlap tolerance of {overlap_pct}%: {len(failed_overlap_x)}/{len(results)} \n'
+            f'Number of successful reconstructions: {len(x_vals)}/{len(results)}')
 
