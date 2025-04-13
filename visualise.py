@@ -14,204 +14,105 @@ import re
 
 
 
-def visualise_single(json_output_data:str, error_log):
+def plot_bricks(path, part_colors):
+    """
+    Plots the matched parts as colored bricks.
 
-    st.title("Visualisation of single cMatch reconstruct")
+    Args:
+        path (list): A list of dictionaries, where each dictionary represents a matched part
+                     and contains 'name', 'start', 'length', 'end', and 'score'.
+        part_colors (dict): A dictionary mapping unique part names to colors.
 
-    # Parse the JSON data
-    data = json.loads(json_output_data)
-    # print(f'Data is {data}')
-    path = False # Do not plot if we do not have a reconstruction
-    if len(error_log) == 0:
-        if 'path' in data[0].keys():
-            path = data[0]['path']
-        else:    
-            st.error('Could not match all parts with this threshold')
-    else:
-        st.error(f"Errors: {str(error_log)}")
+    Returns:
+        matplotlib.figure.Figure: The generated Matplotlib figure.
+    """
+    fig, ax = plt.subplots(figsize=(10, 4))  
 
-    
-    # Function to create the visualization
-    def plot_bricks(path):
-        fig, ax = plt.subplots(figsize=(10, 4))  # Adjust figure size as necessary
-        
-        # colors for each part (name) - can customize more if needed
-        colors = {
-            "J23101": "skyblue",
-            "B0030": "lightgreen",
-            "VioA": "lightcoral",
-            "B0015": "plum",
-            "GFP": "pink"
-        }
-        
-        y_pos = 0.5  # Fixed height for all bricks
+    y_pos = 0.5  
 
-        # Iterate through the path to draw bricks
-        for i, part in enumerate(path):
-            start = part['start']
-            length = part['length']
-            name = part['name']
-            score = part['score']
-            
-            # Set color based on part name
-            color = colors.get(name, 'grey')
+    # Iterate through the path to draw bricks
+    for i, part in enumerate(path):
+        start = part['start']
+        length_theoretical = part['length']
+        name = part['name']
+        score = part['score']
+        end = part['end']
+        length_observed = end - start
 
-            # Create a rectangle (brick)
-            rect = patches.Rectangle((start, y_pos), length, 0.5, edgecolor='black', facecolor=color)
+        color = part_colors.get(name, 'grey')
 
-            # Add the rectangle to the plot
-            ax.add_patch(rect)
-            
-                # Stagger label positions vertically
-            label_y_pos = y_pos + 1.0 + (i % 2) * 0.75   # Adjusted stagger for readability
-            
-            # Add annotation for name and score (with line breaks)
-            ax.annotate(
-                f'{name}\n({score:.2f})',  # Display up to 2 decimal places
-                xy=(start + length/2, y_pos + 0.25),
-                xytext=(start + length/2, label_y_pos),
-                fontsize=10,
-                ha='center', 
-                va='center',
-                color=color,  # Match text color to brick
-                arrowprops=dict(arrowstyle='-', color='black', lw=0.5)  # Line properties
-            )
+        rect = patches.Rectangle((start, y_pos), length_observed, 0.5, edgecolor='black', facecolor=color, alpha=0.5)
 
-        # Add a legend to map colors to part names
-        handles = [patches.Patch(color=col, label=name) for name, col in colors.items()]
-        ax.legend(handles=handles, loc='upper right', fontsize=10, title="Part Names")
+        ax.add_patch(rect)
 
-        # Add gridlines for positions
-        ax.grid(axis='x', color='gray', linestyle='--', linewidth=0.5, alpha=0.7)
+        # Stagger label positions vertically
+        label_y_pos = y_pos + 1.0 + (i % 3) * 1.5  # Adjusted stagger for readability
 
-        # Set plot limits and labels
+        ax.annotate(
+            f'{name}\n({score:.2f})',  
+            xy=(start + length_observed / 2, y_pos + 0.25),
+            xytext=(start + length_observed / 2, label_y_pos),
+            fontsize=10,
+            ha='center',
+            va='center',
+            color=color,  
+            arrowprops=dict(arrowstyle='-', color='black', lw=0.5)  
+        )
+
+    handles = [patches.Patch(color=col, label=name) for name, col in part_colors.items()]
+    ax.legend(handles=handles, loc='upper right', fontsize=10, title="Part Names")
+
+    ax.grid(axis='x', color='gray', linestyle='--', linewidth=0.5, alpha=0.7)
+
+    if path:
         ax.set_xlim(-20, path[-1]['end'] + 100)
-        ax.set_ylim(0, 3 + len(path) * 0.5)  # Increase y-limit for spacing
-        ax.set_xlabel("Position", fontsize=12)
-        ax.set_ylabel("Part names and match scores", fontsize=12)
-        ax.set_yticks([])  # Hide y-axis ticks
-        # Hide spines
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        # plt.tight_layout()
-
-        return fig
-
-
-    if path:   
-        # Generate the plot using the path data
-        fig = plot_bricks(path)
-
-        # Display the plot in Streamlit
-        st.pyplot(fig)
     else:
-        st.error('No reconstruction available.')
+        ax.set_xlim(-20, 100) # Default if no path
+    ax.set_ylim(0, 3 + len(path) * 0.5)  # Increase y-limit for spacing
+    ax.set_xlabel("Position", fontsize=12)
+    ax.set_ylabel("Part names and match scores", fontsize=12)
+    ax.set_yticks([])  # Hide y-axis ticks
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    # plt.tight_layout()
 
-def plot_bricks(path):
-        fig, ax = plt.subplots(figsize=(10, 4))  # Adjust figure size as necessary
-        
-        # colors for each part (name) - can customize more if needed
-        colors = {
-            "J23101": "skyblue",
-            "B0030": "lightgreen",
-            "VioA": "lightcoral",
-            "B0015": "plum",
-            "GFP": "blue"
-        }
-        
-        y_pos = 0.5  # Fixed height for all bricks
+    return fig
 
-        # Iterate through the path to draw bricks
-        for i, part in enumerate(path):
-            start = part['start']
-            length_theoretical = part['length']
-            name = part['name']
-            score = part['score']
-            end = part['end']
-            length_observed = end-start
-            
-            # Set color based on part name
-            color = colors.get(name, 'grey')
-
-            # Create a rectangle (brick)
-            rect = patches.Rectangle((start, y_pos), length_observed, 0.5, edgecolor='black', facecolor=color, alpha=0.5)
-
-            # Add the rectangle to the plot
-            ax.add_patch(rect)
-            
-                # Stagger label positions vertically
-            label_y_pos = y_pos + 1.0 + (i % 2) * 0.75   # Adjusted stagger for readability
-            
-            # Add annotation for name and score (with line breaks)
-            ax.annotate(
-                f'{name}\n({score:.2f})',  # Display up to 2 decimal places
-                xy=(start + length_observed/2, y_pos + 0.25),
-                xytext=(start + length_observed/2, label_y_pos),
-                fontsize=10,
-                ha='center', 
-                va='center',
-                color=color,  # Match text color to brick
-                arrowprops=dict(arrowstyle='-', color='black', lw=0.5)  # Line properties
-            )
-
-        # Add a legend to map colors to part names
-        handles = [patches.Patch(color=col, label=name) for name, col in colors.items()]
-        ax.legend(handles=handles, loc='upper right', fontsize=10, title="Part Names")
-
-        # Add gridlines for positions
-        ax.grid(axis='x', color='gray', linestyle='--', linewidth=0.5, alpha=0.7)
-
-        # Set plot limits and labels
-        ax.set_xlim(-20, path[-1]['end'] + 100)
-        ax.set_ylim(0, 3 + len(path) * 0.5)  # Increase y-limit for spacing
-        ax.set_xlabel("Position", fontsize=12)
-        ax.set_ylabel("Part names and match scores", fontsize=12)
-        ax.set_yticks([])  # Hide y-axis ticks
-        # Hide spines
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        # plt.tight_layout()
-
-        return fig
-
-
-
-def visualise_parts(json_output_data:str):
-
+def visualise_parts(json_output_data: str):
     st.title('cMatch reconstruction map')
-    # Parse the JSON data
     data = json.loads(json_output_data)
-    # breakpoint()
     len_data = len(data)
-    
-    # print(f'Data is {data}')
-    path = False # Do not plot if we do not have a reconstruction
+
+    unique_part_names = set()
+    for result in data:
+        if 'path' in result and result['path']:
+            for part in result['path']:
+                unique_part_names.add(part['name'])
+
+    distinct_colors = plt.cm.get_cmap('viridis', len(unique_part_names))
+    part_colors = {name: distinct_colors(i) for i, name in enumerate(sorted(list(unique_part_names)))}
+
     i = 1
     for result in data:
-        if result['path'] is not None:
+        if 'path' in result and result['path']:
             path = result['path']
-            fig = plot_bricks(path)
+            fig = plot_bricks(path, part_colors)  
             score = result['score']
             label = result['reconstruct']
             target_name = result['target']
 
-            # Display the plot in Streamlit
             st.text(f"Seq: {i}/{len_data} \n Target name: {target_name} \n cMatch Reconstruction Result: {label} \n Score: {score}")
             st.pyplot(fig)
 
-
         else:
             score = result['score']
-            error = result['errors']
+            error = result.get('errors', 'Could not match all parts with this threshold')
             target_name = result['target']
 
-            # Display the plot in Streamlit
-            st.text(f"Seq: {i}/{len_data} \n Target name: {target_name} \n cMatch Reconstruction Result: {error} \n Score: {score}")  
+            st.text(f"Seq: {i}/{len_data} \n Target name: {target_name} \n cMatch Reconstruction Result: {error} \n Score: {score}")
             # st.error('Could not match all parts with this threshold')
-        i+=1
-
+        i += 1
 
 
 def extract_accuracy(target_name):
@@ -219,6 +120,9 @@ def extract_accuracy(target_name):
     return int(match.group(1)) if match else None
 
 def visualise_distribution(result_json: str, overlap_pct, plot_individual_parts=True, plot_over_acc_levels=True):
+    '''
+    Visualises distribution of part scores - will also plot across different accuracies if seq names are in the format pb_gfp_ACCURACY
+    '''
     # st.title("Visualisation of multiple cMatch Scores")
     data = json.loads(result_json)
     
@@ -363,105 +267,6 @@ def plot_error_types(errors_json, overlap_pct):
     bar_plot.set_xlabel("Count", fontsize=12)
     bar_plot.set_ylabel("Error Type", fontsize=12)
     st.pyplot(plt)
-
-def plot_3d(results:str):
-    # st.title('cMatch vector map')
-    st.title("3D Plot of Genetic Part Scores")
-
-    # Parse the JSON data
-    data = json.loads(results)
-    # breakpoint()
-    len_data = len(data)
-
-    i = 1
-    for result in data:
-        # Extract path scores and names
-        if result['path'] is not None:
-            path = result['path']
-            fig = plot_bricks(path)
-            score = result['score']
-            label = result['reconstruct']
-            target_name = result['target']
-
-            # Display the plot in Streamlit
-            st.text(f"Seq: {i}/{len_data} \n Target name: {target_name} \n cMatch Reconstruction Result: {label} \n Score: {score}")
-            st.pyplot(fig)
-            try:
-                part1, part2, part3, part4 = path
-                # Calculate averaged score for the first two parts
-                avg_score_12 = (part1['score'] + part2['score']) / 2
-
-                # Prepare scores and labels for the 3D plot
-                x = avg_score_12  # Average score of first two parts
-                y = part3['score']  # Score of third part
-                z = part4['score']  # Score of fourth part
-                labels = [part1['name'], part2['name'], part3['name'], part4['name']]
-
-                fixed_point = np.array([1, 1, 1])
-                point = np.array([x, y, z])
-                distance = np.linalg.norm(point - fixed_point)
-
-                
-                # st.write("### Input Result:")
-                # st.json(result)
-
-                
-                fig = plt.figure(figsize=(10, 8))
-                ax = fig.add_subplot(111, projection='3d')
-
-                # Plot scores
-                ax.scatter(x, y, z, color='b', label='Construct Point', s=100)
-                ax.text(x, y, z, f"({x:.2f}, {y:.2f}, {z:.2f})", color='blue')
-
-                # Fixed point
-                ax.scatter(1, 1, 1, color='r', label='Reference Point (1, 1, 1)', s=100)
-                ax.text(1, 1, 1, "(1, 1, 1)", color='red')
-
-                # Add connecting line
-                ax.plot([x, 1], [y, 1], [z, 1], color='gray', linestyle='--')
-
-             
-                ax.text((x + 1) / 2, (y + 1) / 2, (z + 1) / 2,
-                        f"Distance: {distance:.2f}", color='black', fontsize=10)
-
-                
-                ax.set_xlabel(f"Average Score ({labels[0]} + {labels[1]}) / 2", fontsize=12)
-                ax.set_ylabel(f"Score ({labels[2]})", fontsize=12)
-                ax.set_zlabel(f"Score ({labels[3]})", fontsize=12)
-                ax.set_xlim([0,1])
-                ax.set_ylim([0,1])
-                ax.set_zlim([0,1])
-
-                # Title and legend
-                ax.set_title("3D Visualization of Genetic Part Scores", fontsize=16)
-                ax.legend()
-
-                # Display the plot in Streamlit
-                st.pyplot(fig)
-
-                # Distance information
-                st.text(f"Seq: {i}/{len_data} \n Target name: {target_name} \n cMatch Reconstruction Result: {label} \n Score: {score}")
-
-                st.text(f"### Distance from Reference Point (1, 1, 1): **{distance:.2f}**")
-            except ValueError as e:
-                
-                st.text(f'Overlapping error for target: {target_name} \n Path: {path}\n Errors: {result['errors']}')
-
-            
-        else:
-            st.text(f'All Parts not found for target: {result['target']}  \n Errors: {result['errors']}')
-        i+=1
-
-
-def generate_colors(n):
-    """Generate `n` visually distinct colors using the HSV color space."""
-    colors = []
-    for i in range(n):
-        hue = i / n  # Distribute hues equally
-        r, g, b = colorsys.hsv_to_rgb(hue, 0.8, 0.9)  # High saturation and value
-        colors.append(f'rgba({int(r*255)}, {int(g*255)}, {int(b*255)}, 0.8)')
-    return colors
-
 
 
 def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):

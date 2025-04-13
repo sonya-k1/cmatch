@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from matching import Library, Sequence, match_library
 from visualise import visualise_distribution, plot_error_types, visualise_parts, plot_3d_multiple_scores
-from store_gfp_outputs import store_match_results
+from cmatch.store_outputs_to_parquet import store_match_results
 
 import plac
 
@@ -299,12 +299,15 @@ def main(template, output_path,threshold=0.7, overlap=0, *targets): # Hard coded
 
    # Plotting used for GFP 3-part construct
     # visualise_distribution(result, overlap, plot_individual_parts=True, plot_over_acc_levels=True)
-    # plot_error_types(error_log, overlap)
-     
     # plot_3d_multiple_scores(result, overlap, threshold)
+    
+    # General plotting
     visualise_parts(result)
+    plot_error_types(error_log, overlap)
+    
     execution_time = time.time() - start_time
     print(f'Execution Time: {execution_time:.4f} seconds')
+    print(result)
 
 
 
