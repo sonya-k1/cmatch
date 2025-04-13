@@ -276,41 +276,35 @@ def remove_duplicates(result_json_str):
 
 
 @plac.pos("template", "JSON construct template. Example: consruct_template.json")
+@plac.pos("threshold", "Threshold", type=float)
+@plac.pos("overlap", "Overlap tolerance in bases", type=int)
+@plac.pos("output_path", f"Output path for results parquet file", type=str)
 @plac.pos("targets", f"Target sequence files. Example: Sanger008.seq", type=str)
-@plac.opt("threshold", "Threshold", type=float)
-def main(template, threshold=0.7, *targets):
+def main(template, output_path,threshold=0.7, overlap=0, *targets): # Hard coded threshold 
     """
     cMatch command line tool
     """
     st.set_page_config(layout="wide")
-    # accuracy= 90
+    # overlap_pct = 0
     
 
     start_time = time.time()
 
-    construct_length= 1101 # hard-coded for now
-    for overlap_pct in [3]:
-        st.title(f'Analysis of cMatch scores of sequences with substitutions only, with an overlap tolerance of {overlap_pct}% ')
-        overlap_tolerance =math.ceil(overlap_pct*construct_length/100)
-        print(f'Number of input targets: {len(targets)} \n Overlap tolerance: {overlap_pct}% ({overlap_tolerance} bases)')
-        result, error_log = match(template, threshold, overlap_tolerance, *targets)
-        # breakpoint()
-        store_match_results(result, 'cmatch_outputs/gfp_90_outputs.parquet',similarity_threshold= threshold, overlap_tolerance=f'{overlap_pct}%')
+    
+        
+    print(f'Number of input targets: {len(targets)} \n Overlap tolerance: ({overlap} bases)')
+    result, error_log = match(template, threshold, overlap, *targets)
+    # breakpoint()
+    store_match_results(result, output_path,similarity_threshold= threshold, overlap_tolerance=f'{overlap}')
 
-
-        visualise_distribution(result, overlap_pct, plot_individual_parts=True, plot_over_acc_levels=True)
-        st.title('')
-        plot_3d_multiple_scores(result, overlap_pct, threshold)
-        plot_error_types(error_log, overlap_pct)
-        st.title('')
-        st.title('')
-        st.title('')
-        st.title('')
-        st.title('')
-
-        # visualise_parts(result)
-        execution_time = time.time() - start_time
-        print(f'Execution Time: {execution_time:.4f} seconds')
+   # Plotting used for GFP 3-part construct
+    # visualise_distribution(result, overlap, plot_individual_parts=True, plot_over_acc_levels=True)
+    # plot_error_types(error_log, overlap)
+     
+    # plot_3d_multiple_scores(result, overlap, threshold)
+    visualise_parts(result)
+    execution_time = time.time() - start_time
+    print(f'Execution Time: {execution_time:.4f} seconds')
 
 
 

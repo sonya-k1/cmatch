@@ -335,7 +335,7 @@ def visualise_distribution(result_json: str, overlap_pct, plot_individual_parts=
                     ax.grid(True, which='both', linestyle='--', linewidth=0.5)
                     st.pyplot(fig)
     
-    st.text(f'Overlap tolerance: {overlap_pct}%')
+    # st.text(f'Overlap tolerance: {overlap_pct}%')
 
  
 def plot_error_types(errors_json, overlap_pct):
@@ -359,6 +359,7 @@ def plot_error_types(errors_json, overlap_pct):
     plt.figure(figsize=(10, 6))
     bar_plot = sns.barplot(x="Count", y="Error Type", data=error_counts, palette="viridis")
     bar_plot.set_title(f"Error Types and Their Frequencies at Overlap tolerance of {overlap_pct}%", fontsize=16)
+    # bar_plot.set_title(f"Error Types and Their Frequencies", fontsize=16)
     bar_plot.set_xlabel("Count", fontsize=12)
     bar_plot.set_ylabel("Error Type", fontsize=12)
     st.pyplot(plt)
@@ -396,10 +397,7 @@ def plot_3d(results:str):
                 z = part4['score']  # Score of fourth part
                 labels = [part1['name'], part2['name'], part3['name'], part4['name']]
 
-                # Define the fixed point (1, 1, 1)
                 fixed_point = np.array([1, 1, 1])
-
-                # Calculate distances to (1, 1, 1)
                 point = np.array([x, y, z])
                 distance = np.linalg.norm(point - fixed_point)
 
@@ -411,22 +409,22 @@ def plot_3d(results:str):
                 fig = plt.figure(figsize=(10, 8))
                 ax = fig.add_subplot(111, projection='3d')
 
-                # Plot the averaged score and the other scores
+                # Plot scores
                 ax.scatter(x, y, z, color='b', label='Construct Point', s=100)
                 ax.text(x, y, z, f"({x:.2f}, {y:.2f}, {z:.2f})", color='blue')
 
-                # Plot the fixed point (1, 1, 1)
+                # Fixed point
                 ax.scatter(1, 1, 1, color='r', label='Reference Point (1, 1, 1)', s=100)
                 ax.text(1, 1, 1, "(1, 1, 1)", color='red')
 
                 # Add connecting line
                 ax.plot([x, 1], [y, 1], [z, 1], color='gray', linestyle='--')
 
-                # Label distances for each axis
+             
                 ax.text((x + 1) / 2, (y + 1) / 2, (z + 1) / 2,
                         f"Distance: {distance:.2f}", color='black', fontsize=10)
 
-                # Axes labels
+                
                 ax.set_xlabel(f"Average Score ({labels[0]} + {labels[1]}) / 2", fontsize=12)
                 ax.set_ylabel(f"Score ({labels[2]})", fontsize=12)
                 ax.set_zlabel(f"Score ({labels[3]})", fontsize=12)
@@ -471,7 +469,7 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
     # st.title("3D Plot of Genetic Part Scores")
 
     results = json.loads(data)
-    unique_acc_values = set()  # To track unique XX values
+    unique_acc_values = set()  
 
     for result in results:
         target_name = result['target']
@@ -479,9 +477,7 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
         acc_value = target_name.split('_')[2]  
         unique_acc_values.add(acc_value)
             
-            
-
-    # Generate distinct colors for unique XX values
+    
     color_palette = cm.get_cmap('tab10')
     acc_color_map = {acc: mcolors.to_hex(color_palette(i / len(unique_acc_values))) 
                      for i, acc in enumerate(unique_acc_values)}
@@ -553,8 +549,7 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
                     f"Target: {target_name}<br>"
                     f"PBSim Accuracy: {acc_value}<br>"
                     f"cMatch Score: {result['score']}<br>"
-                    f"Score (Part 1): {scores[0]:.2f}<br>"
-                    f"Score (Part 2): {scores[1]:.2f}<br>"
+                    f"Combined Score (Part 1): {x:.2f}<br>"
                     f"Score (Part 3): {y:.2f}<br>"
                     f"Score (Part 4): {z:.2f}<br>"
                     f"Error: {result.get('errors', 'None')}"
@@ -572,10 +567,9 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
                 )
 
 
-    # Create a 3D scatter plot
     fig = go.Figure()
 
-    # Add points for each result
+   
     fig.add_trace(go.Scatter3d(
         x=x_vals, y=y_vals, z=z_vals,
         mode='markers',
@@ -628,7 +622,8 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
         color="#CC79A7",  
         opacity=0.8  
     ),
-    name=f'Failed on reconstruction with base overlap tolerance {overlap_pct}%',
+    # name=f'Failed on reconstruction with base overlap tolerance {overlap_pct}%',
+    name=f'Failed on reconstruction',
     showlegend=True
 ))
     # for acc_value, color in acc_color_map.items():
@@ -642,7 +637,7 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
 
     fig.update_layout(
         scene=dict( 
-            xaxis_title="Average Score (Part 1 & 2)",
+            xaxis_title="Score of combined parts (Part 1 & 2)",
             yaxis_title="Score (Part 3)",
             zaxis_title="Score (Part 4)",
             xaxis=dict(

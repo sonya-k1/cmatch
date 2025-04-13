@@ -152,15 +152,16 @@ def reconstruct(matches, overlap=0):
                     # print("\tnb paths:", len(np))
                     # breakpoint()
                     for p in np:
+                        overlap_bases = 0
                         # print("Path:", p)
                         # print(p[i - 1]["end"], p[i]["start"])
                         if p[i - 1]["end"] <= p[i]["start"] + overlap:
                             # print("\tADDDDING:", p)
                             paths.append(p)
-                        # else:
-                            # if i == 3:
-                                # print(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
-                                # errors.append(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
+                        else:
+                            overlap_bases = p[i - 1]["end"] - p[i]["start"]
+                            # print(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
+                            # errors.append(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
                     # print('path number: ', len(paths))
                     # Define result for reconstruction failures due to overlaps
                     if paths==[]:
@@ -168,8 +169,8 @@ def reconstruct(matches, overlap=0):
                         "target": target["target"],
                         "reconstruct": 'failed reconstruction',
                         "score": 0,
-                        "path": np[0], # feed in highest scoring path for errors
-                        "errors": 'Bases Overlapping or order is wrong'
+                        "path": np[0], # feed in highest scoring path for debugging purposes
+                        "errors": f'Parts Overlapping by {overlap_bases} bases or order is wrong'
                         }
                         errors.append(d)
                         print('Error logged for target: ', target['target'])
@@ -208,18 +209,8 @@ def reconstruct(matches, overlap=0):
             total_result += rep # record any failed matching/reconstruction
 
         else:
-                # rep=[]
-                # d = {
-                #     "target": target["target"],
-                #     "reconstruct": 'failed reconstruction',
-                #     "score": 0,
-                #     "path": None,
-                #     "errors": errors
-                #     }
-                # r.append(d)
-                # rep.append(r)
-            total_result += errors
-            total_errors += errors
+            total_result += errors # Even if there are no reconstructions we want to pass errors into here so that they can be shown in plots
+            total_errors += errors # These errors are for the error log plot so is a separate list
            
             print('No reconstruction for target: ', target['target'])
     return total_result, total_errors    

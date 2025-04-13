@@ -265,9 +265,9 @@ class Sequence:
         with open(filename, "r") as file:
             for i, line in enumerate(file):
                 if i == 1:  # TODO: Use % to loop through multiple sequences
-                    sequences.append(line.strip())
+                    sequences= line.strip() # Append to list for multiple seqs
         
-        return Seq.Seq("".join(sequences)) # TODO: change this to create individual seqs maybe? Joining doesn't make sense here
+        return Seq.Seq("".join(sequences)) # TODO: change this to create list of individual seqs maybe? Joining doesn't make sense here
 
     def __repr__(self):
         """
