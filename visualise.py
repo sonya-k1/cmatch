@@ -26,9 +26,9 @@ def plot_bricks(path, part_colors):
     Returns:
         matplotlib.figure.Figure: The generated Matplotlib figure.
     """
-    fig, ax = plt.subplots(figsize=(10, 4))  
+    fig, ax = plt.subplots(figsize=(10, 4))
 
-    y_pos = 0.5  
+    y_pos = 0.5
 
     # Iterate through the path to draw bricks
     for i, part in enumerate(path):
@@ -49,14 +49,14 @@ def plot_bricks(path, part_colors):
         label_y_pos = y_pos + 1.0 + (i % 3) * 1.5  # Adjusted stagger for readability
 
         ax.annotate(
-            f'{name}\n({score:.2f})',  
+            f'{name}\n({score:.2f})',
             xy=(start + length_observed / 2, y_pos + 0.25),
             xytext=(start + length_observed / 2, label_y_pos),
             fontsize=10,
             ha='center',
             va='center',
-            color=color,  
-            arrowprops=dict(arrowstyle='-', color='black', lw=0.5)  
+            color=color,
+            arrowprops=dict(arrowstyle='-', color='black', lw=0.5)
         )
 
     handles = [patches.Patch(color=col, label=name) for name, col in part_colors.items()]
@@ -64,10 +64,13 @@ def plot_bricks(path, part_colors):
 
     ax.grid(axis='x', color='gray', linestyle='--', linewidth=0.5, alpha=0.7)
 
+    # Set x-axis limit to the maximum 'end' value
     if path:
-        ax.set_xlim(-20, path[-1]['end'] + 100)
+        max_end = max(part['end'] for part in path)
+        ax.set_xlim(-20, max_end + 100)
     else:
         ax.set_xlim(-20, 100) # Default if no path
+
     ax.set_ylim(0, 3 + len(path) * 0.5)  # Increase y-limit for spacing
     ax.set_xlabel("Position", fontsize=12)
     ax.set_ylabel("Part names and match scores", fontsize=12)
@@ -262,7 +265,7 @@ def plot_error_types(errors_json, overlap_pct):
     sns.set_theme(style="whitegrid")
     plt.figure(figsize=(10, 6))
     bar_plot = sns.barplot(x="Count", y="Error Type", data=error_counts, palette="viridis")
-    bar_plot.set_title(f"Error Types and Their Frequencies at Overlap tolerance of {overlap_pct}%", fontsize=16)
+    bar_plot.set_title(f"Error Types and Their Frequencies at Overlap tolerance of {overlap_pct} bases", fontsize=16)
     # bar_plot.set_title(f"Error Types and Their Frequencies", fontsize=16)
     bar_plot.set_xlabel("Count", fontsize=12)
     bar_plot.set_ylabel("Error Type", fontsize=12)

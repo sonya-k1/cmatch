@@ -235,7 +235,7 @@ class Sequence:
     Sequence class
     """
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, directionforward=True):
         """
         Constructor from sequence file
         """
@@ -246,18 +246,24 @@ class Sequence:
         self.filename = basename
         # self.sequence = Seq.Seq( read_file(filename).strip(whitespace)).reverse_complement()  # remove shit form string
         # breakpoint()
-        if self.filetype.lower() == "fastq":
+        
+        if self.filetype.lower() == "fastq" or self.filetype.lower() == "fasta":
             # Parse FASTQ to extract sequences only
-            self.sequence = self._extract_fastq_sequence(filename)
+            self.sequence = self._extract_fastq_sequence(filename, directionforward)
         else:
             # Handle other file formats
-            self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
+            if directionforward:
+                self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
+            else:
+                # self.sequence = Seq.Seq(read_file(filename).strip(whitespace)).reverse_complement()
+                self.sequence = Seq.Seq(read_file(filename).strip(whitespace))[::-1] # For only reverse sequence
+
         
         # self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
         # self.trace = self.get_trace()
         self.length = len(self.sequence)
         # breakpoint()
-    def _extract_fastq_sequence(self, filename: str) -> Seq.Seq:
+    def _extract_fastq_sequence(self, filename: str, directionforward) -> Seq.Seq:
         """
         Extracts sequence data from a FASTQ file. TODO: deal with multiple sequences
         """
@@ -266,8 +272,12 @@ class Sequence:
             for i, line in enumerate(file):
                 if i == 1:  # TODO: Use % to loop through multiple sequences
                     sequences= line.strip() # Append to list for multiple seqs
-        
-        return Seq.Seq("".join(sequences)) # TODO: change this to create list of individual seqs maybe? Joining doesn't make sense here
+                    # print(sequences)
+        if directionforward:
+            return Seq.Seq("".join(sequences)) # TODO: change this to create list of individual seqs maybe? Joining doesn't make sense here
+        else:
+            # return Seq.Seq("".join(sequences)).reverse_complement()
+            return Seq.Seq("".join(sequences))[::-1]
 
     def __repr__(self):
         """
@@ -376,7 +386,7 @@ class PartCandidate:
 
 @timeit
 def match_part(
-    sequence: Sequence, part: Part, threshold: float = 0.5, direction53=True
+    sequence: Sequence, part: Part, threshold: float = 0.5, directionforward=True
 ) -> List[PartCandidate]:
     """
     Match part to a sequence and return candidates that score above the threshold
@@ -389,24 +399,67 @@ def match_part(
     logging.info(part.name)
     candidates = []
     # TODO check this shit
-    if direction53:
+    if directionforward:
         part_rc = part.sequence.seq
     else:
-        part_rc = part.sequence.seq.reverse_complement()
+        # part_rc = part.sequence.seq.reverse_complement() # For 35 direction
+        part_rc = part.sequence.seq[::-1] # For reverse sequences, not 35 direction
+
+        print(f'Part sequence: {part_rc}')
+        # breakpoint()
         # part_rc = part.sequence.seq
         # part_rc = part.sequence.seq[::-1]
     # Calculate Alignments
-    alignments = pairwise2.align.localms(part_rc, sequence.sequence, 1, -1, -2, -1)
-    for alignment in alignments:
-        score = alignment.score / len(part.sequence.seq)  # normalize score
+    seen_positions = set() 
+    # alignments = pairwise2.align.localms(part_rc, sequence.sequence, 1, -1, -2, -1)
+    # Get forward and reverse alignments
+    alignments_forward = pairwise2.align.localms(part_rc, sequence.sequence, 1, -1, -2, -1)
+    alignments_reverse = pairwise2.align.localms(part_rc[::-1], sequence.sequence[::-1], 1, -1, -2, -1)
+    # breakpoint()
+    # Check if alignments exist
+    if not alignments_forward or not alignments_reverse:
+        return candidates  # Return empty list if no alignments found
+    
+    # Check if the alignment lists have the same length
+    if len(alignments_forward) != len(alignments_reverse):
+        print(f"Warning: Mismatched alignment counts - forward: {len(alignments_forward)}, reverse: {len(alignments_reverse)}")
+        # Use the shorter length to avoid index errors
+        iterations = min(len(alignments_forward), len(alignments_reverse))
+    else:
+        iterations = len(alignments_forward)
+    
+    # Process paired alignments
+    seen_positions = set()  # To track unique position combinations
+    
+    for i in range(iterations):
+        fwd_alignment = alignments_forward[i]
+        rev_alignment = alignments_reverse[i]
+        
+        # Calculate score based on forward alignment
+        score = fwd_alignment.score / len(part.sequence.seq)  # normalize score
+        
         if score > threshold:
+            # Use forward alignment start position as start
+            start_pos = fwd_alignment.start
+            
+            # Calculate end position from reverse alignment
+            seq_length = len(sequence.sequence)
+            end_pos = seq_length - rev_alignment.start
+            
+            # Skip duplicates based on position
+            position_key = (start_pos, end_pos)
+            if position_key in seen_positions:
+                continue
+            
+            seen_positions.add(position_key)
+            
             candidate = (
                 part.name,
                 score,
-                alignment.start,
+                start_pos,
                 len(part.sequence.seq),
-                alignment.end,
-                alignment,
+                end_pos,
+                fwd_alignment,  # Store the forward alignment
             )
             part_candidate = PartCandidate(candidate)
             candidates.append(part_candidate)
@@ -449,7 +502,7 @@ def match_part_probability_trace(
 
 
 def match_library(
-    sequence: Sequence, library: Library, threshold: float = 0.1, direction53=True
+    sequence: Sequence, library: Library, threshold: float = 0.1, directionforward=True
 ) -> List[PartCandidate]:
     """
     Match library of parts to a sequence and return candidates that score above the threshold.
@@ -462,7 +515,7 @@ def match_library(
     library_candidates = []
     for part in library.parts:
         # print('Library part: ', part)
-        part_candidates = match_part(sequence, part, threshold, direction53)
+        part_candidates = match_part(sequence, part, threshold, directionforward)
         if part_candidates:
             library_candidates.append(part_candidates)
     return library_candidates

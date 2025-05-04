@@ -145,6 +145,8 @@ def reconstruct(matches, overlap=0):
                             new.append(e)
                             np.append(new)
                     # pprint(f'NP: {np}')
+
+                    ##############
                     # Prune
                     paths = []
 
@@ -163,6 +165,9 @@ def reconstruct(matches, overlap=0):
                             # print(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
                             # errors.append(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
                     # print('path number: ', len(paths))
+
+
+
                     # Define result for reconstruction failures due to overlaps
                     if paths==[]:
                         d = {
@@ -170,7 +175,8 @@ def reconstruct(matches, overlap=0):
                         "reconstruct": 'failed reconstruction',
                         "score": 0,
                         "path": np[0], # feed in highest scoring path for debugging purposes
-                        "errors": f'Parts Overlapping by {overlap_bases} bases or order is wrong'
+                        "errors": f'Parts Overlapping or order is wrong',
+                        "overlap": overlap_bases
                         }
                         errors.append(d)
                         print('Error logged for target: ', target['target'])

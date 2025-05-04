@@ -31,8 +31,9 @@ def extract_data(match_result):
                 "end": part.get("end", 0)
             }
             parts_data.append(part_info)
+    overlap_bases = result.get("overlap")
 
-    return overall_score, parts_data, errors
+    return overall_score, parts_data, errors, overlap_bases
 
 def store_match_results(results_json, parquet_file, similarity_threshold, overlap_tolerance):
     """
@@ -61,7 +62,7 @@ def store_match_results(results_json, parquet_file, similarity_threshold, overla
             reconstruct = item.get("reconstruct", "")  # Reconstruction pattern
 
             # Extract scores, positions and errors
-            overall_score, parts_data, errors = extract_data(json.dumps([item]))
+            overall_score, parts_data, errors, overlap_bases = extract_data(json.dumps([item]))
 
             record = {
                 "ID": target,
@@ -69,6 +70,7 @@ def store_match_results(results_json, parquet_file, similarity_threshold, overla
                 "Overall_Score": overall_score,
                 "Parts": parts_data,  # Store the list of part dictionaries
                 "Errors": str(errors) if errors is not None else None,
+                "Breaking_Overlap": overlap_bases,
                 "Similarity_Threshold": similarity_threshold,
                 "Overlap_Tolerance": overlap_tolerance
             }

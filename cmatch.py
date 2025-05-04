@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from matching import Library, Sequence, match_library
 from visualise import visualise_distribution, plot_error_types, visualise_parts, plot_3d_multiple_scores
-from cmatch.store_outputs_to_parquet import store_match_results
+from store_outputs_to_parquet import store_match_results
 
 import plac
 
@@ -25,7 +25,7 @@ current_file = path.basename(__file__).split(".")[0]
 
 
 @timeit
-def match_libs(seq, libs, threshold=0.5):
+def match_libs(seq, libs, threshold=0.5, directionforward=True):
     """
     Match libs with the sequence
     """
@@ -37,7 +37,7 @@ def match_libs(seq, libs, threshold=0.5):
         # threshold = lib["score_threshold"]
         # print('pop: ', pop)       
         # breakpoint()
-        candidates = match_library(seq, Library(lib), threshold, direction53=True)
+        candidates = match_library(seq, Library(lib), threshold, directionforward)
         cl = []
         for candidate in candidates:
             for c in candidate:
@@ -154,7 +154,7 @@ def iter_all_seq(
         json.dump(r, filename, indent=2, separators=(",", ":"))
 
 
-def match(template, threshold, overlap, *targets):
+def match(template, threshold, overlap, match_results_path,directionforward, *targets):
     """
     Match
     """
@@ -169,8 +169,9 @@ def match(template, threshold, overlap, *targets):
 
     # Matching
     for target in targets:
-        sq = Sequence(target)
-        
+        sq = Sequence(target, directionforward)
+        # print(f'Direction 53: {direction53}, \n Sequence: {sq.sequence}')
+        # breakpoint()
         json_to_output = {}
         json_to_output["target"] = sq.name
         print('FINDING MATCHES FOR: ',sq.name)
@@ -179,7 +180,7 @@ def match(template, threshold, overlap, *targets):
         libs_to_match = libs["construct"]  # name of the fake primer
         # print('libs:  ', libs_to_match)
         
-        matches = match_libs(sq, libs_to_match, threshold=threshold)
+        matches = match_libs(sq, libs_to_match, threshold=threshold, directionforward=directionforward )
         # print(f'matches are {matches}')
         # continue_reconstruct = True  ## Only continue with reconstruction if we have identified each part
         # for match in matches:
@@ -203,15 +204,23 @@ def match(template, threshold, overlap, *targets):
     try:
         print('Attempting reconstruct')
         print('length of input r:', len(r))
-        reconstruction_result, errors = reconstruct(r, overlap=overlap)
-        # print(f'Reconstruction result: {reconstruction_result, errors}')
-        if errors != []:
-            error_log.append(errors)
-        # print('error log: ',error_log)
-        # total_results.append(reconstruction_result)
-        print('length of reconstruction result: ', len(reconstruction_result))
-        ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
-        # print("ss", ss)
+
+
+        # with open(f'template_seq_data/kl_constructs/Library1_5_7184/matching_outputs/Library1_5_7184_matching_data_0_9.json', 'w') as f:
+        with open(match_results_path, 'w') as f:
+            json.dump(r,f, indent=2, separators=(",", ":"))
+        ss = json.dumps(r)
+        ##-------------COMMENTED OUT for no reconstruction--------------------    
+        # reconstruction_result, errors = reconstruct(r, overlap=overlap)
+        # # print(f'Reconstruction result: {reconstruction_result, errors}')
+        # if errors != []:
+        #     error_log.append(errors)
+        # # print('error log: ',error_log)
+        # # total_results.append(reconstruction_result)
+        # print('length of reconstruction result: ', len(reconstruction_result))
+        # ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
+        # # print("ss", ss)
+        ##---------------------------------------------
     except Exception as e:
         print('Unknown error: ', e)
         error_log.append(f'Unknown Error: {e}')
@@ -273,14 +282,18 @@ def remove_duplicates(result_json_str):
     return unique_results
 
 
+def str2bool(v):
+    return v.lower() in ("yes", "true", "t", "1")
 
 
 @plac.pos("template", "JSON construct template. Example: consruct_template.json")
 @plac.pos("threshold", "Threshold", type=float)
 @plac.pos("overlap", "Overlap tolerance in bases", type=int)
 @plac.pos("output_path", f"Output path for results parquet file", type=str)
+@plac.pos("directionforward", f"Set True if sequence is in the forward direction", type=str2bool)
+@plac.pos("match_results_path", f"Output path for match results json file", type=str)
 @plac.pos("targets", f"Target sequence files. Example: Sanger008.seq", type=str)
-def main(template, output_path,threshold=0.7, overlap=0, *targets): # Hard coded threshold 
+def main(template, output_path, match_results_path, directionforward, threshold=0.7, overlap=0, *targets): # Hard coded threshold 
     """
     cMatch command line tool
     """
@@ -291,23 +304,27 @@ def main(template, output_path,threshold=0.7, overlap=0, *targets): # Hard coded
     start_time = time.time()
 
     
-        
-    print(f'Number of input targets: {len(targets)} \n Overlap tolerance: ({overlap} bases)')
-    result, error_log = match(template, threshold, overlap, *targets)
+    output_dir = os.path.dirname(match_results_path)
+
+    # Create the directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(f'Number of input targets: {len(targets)} \n Overlap tolerance: ({overlap} bases), Direction Forward: {directionforward}')
+    result, error_log = match(template, threshold, overlap, match_results_path, directionforward, *targets)
     # breakpoint()
-    store_match_results(result, output_path,similarity_threshold= threshold, overlap_tolerance=f'{overlap}')
+    # store_match_results(result, output_path,similarity_threshold= threshold, overlap_tolerance=f'{overlap}')
 
    # Plotting used for GFP 3-part construct
     # visualise_distribution(result, overlap, plot_individual_parts=True, plot_over_acc_levels=True)
     # plot_3d_multiple_scores(result, overlap, threshold)
     
     # General plotting
-    visualise_parts(result)
-    plot_error_types(error_log, overlap)
+    # visualise_parts(result)
+    # plot_error_types(error_log, overlap)
     
     execution_time = time.time() - start_time
     print(f'Execution Time: {execution_time:.4f} seconds')
-    print(result)
+    # print(result)
 
 
 
