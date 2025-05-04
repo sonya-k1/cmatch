@@ -209,18 +209,19 @@ def match(template, threshold, overlap, match_results_path,directionforward, *ta
         # with open(f'template_seq_data/kl_constructs/Library1_5_7184/matching_outputs/Library1_5_7184_matching_data_0_9.json', 'w') as f:
         with open(match_results_path, 'w') as f:
             json.dump(r,f, indent=2, separators=(",", ":"))
-        ss = json.dumps(r)
+        
         ##-------------COMMENTED OUT for no reconstruction--------------------    
-        # reconstruction_result, errors = reconstruct(r, overlap=overlap)
-        # # print(f'Reconstruction result: {reconstruction_result, errors}')
-        # if errors != []:
-        #     error_log.append(errors)
-        # # print('error log: ',error_log)
-        # # total_results.append(reconstruction_result)
-        # print('length of reconstruction result: ', len(reconstruction_result))
-        # ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
-        # # print("ss", ss)
+        reconstruction_result, errors = reconstruct(r, overlap=overlap)
+        # print(f'Reconstruction result: {reconstruction_result, errors}')
+        if errors != []:
+            error_log.append(errors)
+        # print('error log: ',error_log)
+        # total_results.append(reconstruction_result)
+        print('length of reconstruction result: ', len(reconstruction_result))
+        ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
+        # print("ss", ss)
         ##---------------------------------------------
+        # ss = json.dumps(r)
     except Exception as e:
         print('Unknown error: ', e)
         error_log.append(f'Unknown Error: {e}')
@@ -312,7 +313,7 @@ def main(template, output_path, match_results_path, directionforward, threshold=
     print(f'Number of input targets: {len(targets)} \n Overlap tolerance: ({overlap} bases), Direction Forward: {directionforward}')
     result, error_log = match(template, threshold, overlap, match_results_path, directionforward, *targets)
     # breakpoint()
-    # store_match_results(result, output_path,similarity_threshold= threshold, overlap_tolerance=f'{overlap}')
+    store_match_results(result, output_path,similarity_threshold= threshold, overlap_tolerance=f'{overlap}')
 
    # Plotting used for GFP 3-part construct
     # visualise_distribution(result, overlap, plot_individual_parts=True, plot_over_acc_levels=True)
