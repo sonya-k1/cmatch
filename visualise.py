@@ -46,14 +46,14 @@ def plot_bricks(path, part_colors):
         ax.add_patch(rect)
 
         # Stagger label positions vertically
-        label_y_pos = y_pos + 1.0 + (i % 3) * 1.5  # Adjusted stagger for readability
+        label_y_pos = y_pos + 1.0 + (i % 3) * 0.5  # Adjusted stagger for readability
 
         ax.annotate(
             f'{name}\n({score:.2f})',
             xy=(start + length_observed / 2, y_pos + 0.25),
             xytext=(start + length_observed / 2, label_y_pos),
-            fontsize=10,
-            ha='center',
+            fontsize=7,
+            ha='left',
             va='center',
             color=color,
             arrowprops=dict(arrowstyle='-', color='black', lw=0.5)
@@ -84,7 +84,7 @@ def plot_bricks(path, part_colors):
 
 def visualise_parts(json_output_data: str):
     st.title('cMatch reconstruction map')
-    data = json.loads(json_output_data)
+    data = json.loads(json_output_data)[0]
     len_data = len(data)
 
     unique_part_names = set()
@@ -98,6 +98,8 @@ def visualise_parts(json_output_data: str):
 
     i = 1
     for result in data:
+        
+        # breakpoint()
         if 'path' in result and result['path']:
             path = result['path']
             fig = plot_bricks(path, part_colors)  
@@ -118,13 +120,17 @@ def visualise_parts(json_output_data: str):
         i += 1
 
 
-def extract_accuracy(target_name):
-    match = re.search(r'pb_gfp_(\d+)_', target_name)
+def extract_accuracy(target_name, file_prefix):
+    """ 
+    Extracts accuracy from filenames in the format: 'file_prefix_{accuracy}'.
+    """
+    match = re.search(rf'{file_prefix}_(\d+)_', target_name)
     return int(match.group(1)) if match else None
 
-def visualise_distribution(result_json: str, overlap_pct, plot_individual_parts=True, plot_over_acc_levels=True):
+def visualise_distribution(result_json: str, overlap_pct, file_prefix=None, accuracy = None, plot_individual_parts=True, plot_over_acc_levels=True, ):
     '''
-    Visualises distribution of part scores - will also plot across different accuracies if seq names are in the format pb_gfp_ACCURACY
+    Visualises distribution of part scores - will also plot across different accuracies if file_prefix provided
+    file_prefix
     '''
     # st.title("Visualisation of multiple cMatch Scores")
     data = json.loads(result_json)
@@ -135,12 +141,11 @@ def visualise_distribution(result_json: str, overlap_pct, plot_individual_parts=
     for entry in data:
         target = entry["target"]
         overall_score = entry["score"]
-        accuracy = extract_accuracy(target)
         
         records.append({
             "target": target,
             "overall_score": overall_score,
-            "accuracy": accuracy
+            "accuracy": accuracy if accuracy else extract_accuracy(target, file_prefix)
         })
         
         # Extract part scores
@@ -273,10 +278,13 @@ def plot_error_types(errors_json, overlap_pct):
 
 
 def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
+    """
+    3D plot of cMatch scores for 3-part constructs only
+    """
 
     # st.title("3D Plot of Genetic Part Scores")
 
-    results = json.loads(data)
+    results = json.loads(data)[0]
     unique_acc_values = set()  
 
     for result in results:
@@ -301,6 +309,7 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
     failed_overlap_hover_texts = []
     failed_overlap_colours = []
     for result in results:
+        # breakpoint()
         target_name = result['target']
         acc_value = target_name.split('_')[2] 
 
@@ -331,14 +340,15 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
                 f"PBSim Accuracy: {acc_value}<br>"
                 f"cMatch Score: {result['score']}<br>"
                 f"Mean Score: {geometric_mean([x, y, z])}<br>"
-                f"Combined Part Score (Part 1 & 2): {x:.2f}<br>"
-                f"Score (Part 3): {y:.2f}<br>"
-                f"Score (Part 4): {z:.2f}<br>"
+                f"Score (Part 1): {x:.2f}<br>"
+                f"Score (Part 2): {y:.2f}<br>"
+                f"Score (Part 3): {z:.2f}<br>"
                 f"Error: {result.get('errors', 'None')}"
             )
 
         else:
-            if result['path'] is not None and result.get('errors')=='Bases Overlapping or order is wrong':
+            # breakpoint()
+            if result['path'] is not None and result.get('errors')=='Parts Overlapping or order is wrong':
                 color='blue'
                 path = result.get('path', [])
                 scores = [0, 0, 0]  
@@ -434,13 +444,6 @@ def plot_3d_multiple_scores(data:str, overlap_pct:int, threshold:float):
     name=f'Failed on reconstruction',
     showlegend=True
 ))
-    # for acc_value, color in acc_color_map.items():
-    #     fig.add_trace(go.Scatter3d(
-    #         x=[None], y=[None], z=[None],  
-    #         mode='markers',
-    #         marker=dict(size=10, color=color),
-    #         name=f"PBSim accuracy = {acc_value}"  
-    #     ))
 
 
     fig.update_layout(

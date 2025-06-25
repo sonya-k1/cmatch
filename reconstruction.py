@@ -109,11 +109,8 @@ def reconstruct(matches, overlap=0):
         else:
             for e in libs[0]["candidates"]:
                 paths.append([e])
-            # print("\tPAAAA", paths)
 
-            #print(strftime("%Y%m%d-%H%M%S"))
-            #print("Depth:", 0)
-            #print("\tnb paths:", len(paths))
+            
 
             for i in range(1, len(libs), 1):
                 if len(libs[i]["candidates"])==0:
@@ -137,8 +134,7 @@ def reconstruct(matches, overlap=0):
                         aa = sorted(
                             libs[i]["candidates"], key=lambda d: d["score"], reverse=True
                         )
-                        #aa = aa[0:1]
-                        #print("aa:", aa)
+                        
                         # TODO verify highest score
                         for e in aa:
                             new = pa.copy()
@@ -149,22 +145,16 @@ def reconstruct(matches, overlap=0):
                     ##############
                     # Prune
                     paths = []
-
-                    # print("\nDepth:", i)
-                    # print("\tnb paths:", len(np))
-                    # breakpoint()
                     for p in np:
                         overlap_bases = 0
                         # print("Path:", p)
                         # print(p[i - 1]["end"], p[i]["start"])
                         if p[i - 1]["end"] <= p[i]["start"] + overlap:
-                            # print("\tADDDDING:", p)
                             paths.append(p)
                         else:
                             overlap_bases = p[i - 1]["end"] - p[i]["start"]
                             # print(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
-                            # errors.append(f'Constructs {p[i-1]["name"]} and {p[i]["name"]} overlap by {p[i - 1]["end"] - p[i]["start"]} bases ')
-                    # print('path number: ', len(paths))
+                            
 
 
 
@@ -191,7 +181,7 @@ def reconstruct(matches, overlap=0):
 
         r = []
         if paths!=[]:
-            # errors = [] # Clear any existing errors from broken paths
+            
             print('target: ', target['target'])
             for i in range(len(paths)):
                 # print('path found for target: ', target['target'])
@@ -219,6 +209,7 @@ def reconstruct(matches, overlap=0):
             total_errors += errors # These errors are for the error log plot so is a separate list
            
             print('No reconstruction for target: ', target['target'])
+    # breakpoint()
     return total_result, total_errors    
 
 

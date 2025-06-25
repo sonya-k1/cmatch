@@ -8,7 +8,8 @@ import logging
 import sbol2
 
 from Bio import Seq, SeqIO, SeqRecord, pairwise2
-
+from Bio.Align import PairwiseAligner
+from time import time
 
 def read_file(filename: str):
     """
@@ -244,14 +245,13 @@ class Sequence:
         self.name = basename.split(".")[0]
         self.filetype = basename.split(".")[1]
         self.filename = basename
-        # self.sequence = Seq.Seq( read_file(filename).strip(whitespace)).reverse_complement()  # remove shit form string
-        # breakpoint()
+        # self.sequence = Seq.Seq( read_file(filename).strip(whitespace)).reverse_complement()  
         
         if self.filetype.lower() == "fastq" or self.filetype.lower() == "fasta":
-            # Parse FASTQ to extract sequences only
+           
             self.sequence = self._extract_fastq_sequence(filename, directionforward)
         else:
-            # Handle other file formats
+            
             if directionforward:
                 self.sequence = Seq.Seq(read_file(filename).strip(whitespace))
             else:
@@ -384,6 +384,29 @@ class PartCandidate:
         return f"{self.__class__.__name__}({self.name}, {self.score}, {self.start}, {self.length}, {self.end}, <alignments>)"
 
 
+def score_pairwise(s1, s2, match=1, mismatch=-1, gap_open=-2, gap_extend=-1):
+    score = 0
+    in_gap1 = in_gap2 = False
+
+    for c1, c2 in zip(s1, s2):
+        if c1 == '-' or c2 == '-':
+            if c1 == '-':
+                if not in_gap1:
+                    score += gap_open
+                    in_gap1 = True
+                else:
+                    score += gap_extend
+            if c2 == '-':
+                if not in_gap2:
+                    score += gap_open
+                    in_gap2 = True
+                else:
+                    score += gap_extend
+        else:
+            in_gap1 = in_gap2 = False
+            score += match if c1 == c2 else mismatch
+    return score
+
 @timeit
 def match_part(
     sequence: Sequence, part: Part, threshold: float = 0.5, directionforward=True
@@ -398,29 +421,21 @@ def match_part(
     """
     logging.info(part.name)
     candidates = []
-    # TODO check this shit
     if directionforward:
         part_rc = part.sequence.seq
     else:
         # part_rc = part.sequence.seq.reverse_complement() # For 35 direction
         part_rc = part.sequence.seq[::-1] # For reverse sequences, not 35 direction
 
-        print(f'Part sequence: {part_rc}')
-        # breakpoint()
-        # part_rc = part.sequence.seq
-        # part_rc = part.sequence.seq[::-1]
-    # Calculate Alignments
-    seen_positions = set() 
-    # alignments = pairwise2.align.localms(part_rc, sequence.sequence, 1, -1, -2, -1)
-    # Get forward and reverse alignments
+    start = time()
     alignments_forward = pairwise2.align.localms(part_rc, sequence.sequence, 1, -1, -2, -1)
+    
     alignments_reverse = pairwise2.align.localms(part_rc[::-1], sequence.sequence[::-1], 1, -1, -2, -1)
     # breakpoint()
-    # Check if alignments exist
-    if not alignments_forward or not alignments_reverse:
-        return candidates  # Return empty list if no alignments found
     
-    # Check if the alignment lists have the same length
+    if not alignments_forward or not alignments_reverse:
+        return candidates  
+    
     if len(alignments_forward) != len(alignments_reverse):
         print(f"Warning: Mismatched alignment counts - forward: {len(alignments_forward)}, reverse: {len(alignments_reverse)}")
         # Use the shorter length to avoid index errors
@@ -428,41 +443,140 @@ def match_part(
     else:
         iterations = len(alignments_forward)
     
-    # Process paired alignments
-    seen_positions = set()  # To track unique position combinations
+    
+    seen_positions = set()  
     
     for i in range(iterations):
         fwd_alignment = alignments_forward[i]
         rev_alignment = alignments_reverse[i]
         
-        # Calculate score based on forward alignment
-        score = fwd_alignment.score / len(part.sequence.seq)  # normalize score
+        # Extract region of interest from sequence.sequence 
+        # Part start = start position from the forward align
+        # Part end = sequence length - start position of reverse align 
+        start_pos = fwd_alignment.start
+        end_pos = len(sequence.sequence) - rev_alignment.start
+        target_subseq = sequence.sequence[start_pos:end_pos]
+
+
         
-        if score > threshold:
-            # Use forward alignment start position as start
-            start_pos = fwd_alignment.start
-            
-            # Calculate end position from reverse alignment
-            seq_length = len(sequence.sequence)
-            end_pos = seq_length - rev_alignment.start
-            
-            # Skip duplicates based on position
-            position_key = (start_pos, end_pos)
-            if position_key in seen_positions:
-                continue
-            
-            seen_positions.add(position_key)
-            
+        # Skip duplicates based on position
+        position_key = (start_pos, end_pos)
+        if position_key in seen_positions:
+            continue
+        
+        seen_positions.add(position_key)
+        # # Align the extracted region to part reference
+        realignments = pairwise2.align.localms(part_rc, target_subseq, 1, -1, -2, -1)
+
+        if not realignments:
+            continue  
+
+        # Use best alignment (first one)
+        realign = realignments[0]
+        aligned_part, aligned_target, raw_score, _, _ = realign
+
+        # Manually re-score the alignment for just the selected region target.
+        # Avoids the pairwise score which may be influenced by spurious start/end positions
+        manual_score = score_pairwise(aligned_part, aligned_target, match=1, mismatch=-1, gap_open=-2, gap_extend=-1)
+
+        # end = time()
+        # print(len(alignments_forward), end-start)
+        # Normalize score by part length
+        normalized_score = manual_score / len(part.sequence.seq) if raw_score!=manual_score else raw_score/len(part.sequence.seq)
+                
+        if normalized_score > threshold:
             candidate = (
                 part.name,
-                score,
+                normalized_score,
                 start_pos,
                 len(part.sequence.seq),
                 end_pos,
-                fwd_alignment,  # Store the forward alignment
+                fwd_alignment,  
             )
             part_candidate = PartCandidate(candidate)
             candidates.append(part_candidate)
+    return candidates
+
+
+
+
+def score_part_against_ground_truth(
+    sequence: Sequence, 
+    part: Part, 
+    ground_truth_start: int, 
+    ground_truth_end: int, 
+    threshold: float = 0.5,
+    directionforward: bool = True 
+) -> List[PartCandidate]:
+    """
+    Score how well a part matches a specific region within a sequence, defined by ground truth positions.
+    This function skips the initial forward/reverse alignment inference and directly uses
+    the provided ground_truth_start and ground_truth_end to define the target subsequence.
+
+    :param sequence: Sequence object containing the full sequence.
+    :param part: Part object representing the genetic part to match.
+    :param ground_truth_start: The 0-based start position of the ground truth region in the sequence.
+    :param ground_truth_end: The 0-based end position (exclusive) of the ground truth region in the sequence.
+    :param threshold: Normalized score threshold for a candidate to be considered valid (Default: 0.5).
+    :param directionforward: Boolean indicating if the part sequence is forward or should be reversed for alignment.
+                             (Default: True)
+
+    Returns:
+        List[PartCandidate]: A list of PartCandidate objects if the match meets the threshold.
+                             Typically, only one candidate is expected per ground truth region.
+    """
+    logging.info(f"Scoring {part.name} against ground truth region [{ground_truth_start}-{ground_truth_end}] in {sequence.uid if hasattr(sequence, 'uid') else 'sequence'}")
+    
+    candidates = []
+
+    
+    if directionforward:
+        part_seq_for_alignment = part.sequence.seq
+    else:
+        part_seq_for_alignment = part.sequence.seq[::-1] 
+
+    if not (0 <= ground_truth_start < ground_truth_end <= len(sequence.sequence)):
+        logging.warning(f"Invalid ground truth positions: [{ground_truth_start}-{ground_truth_end}] for sequence length {len(sequence.sequence)}. Skipping.")
+        return []
+
+    target_subseq = sequence.sequence[ground_truth_start:ground_truth_end]
+    if not target_subseq:
+        logging.info(f"Target subsequence too short or empty for {part.name} at [{ground_truth_start}-{ground_truth_end}]. Skipping.")
+        return []
+
+    
+    alignments = pairwise2.align.localms(part_seq_for_alignment, target_subseq, 1, -1, -2, -1)
+
+    if not alignments:
+        logging.info(f"No alignment found for {part.name} against ground truth region [{ground_truth_start}-{ground_truth_end}].")
+        return []
+
+    # Use the best alignment (usually the first one)
+    best_realign = alignments[0]
+    aligned_part, aligned_target, raw_score, _, _ = best_realign
+
+    # Manually re-score the alignment for just the selected region target.
+    # This ensures the score is based solely on the match within the ground truth window.
+    manual_score = score_pairwise(aligned_part, aligned_target, match=1, mismatch=-1, gap_open=-2, gap_extend=-1)
+    part_original_length = len(part.sequence.seq)
+    if part_original_length == 0:
+        logging.warning(f"Part '{part.name}' has zero length. Cannot normalize score.")
+        return []
+    normalized_score = manual_score / part_original_length
+            
+    if normalized_score > threshold:
+        
+        candidate = (
+            part.name,
+            normalized_score,
+            ground_truth_start, 
+            part_original_length, 
+            ground_truth_end,   
+            None, 
+        )
+        part_candidate = PartCandidate(candidate)
+        candidates.append(part_candidate)
+        
     return candidates
 
 
@@ -502,20 +616,28 @@ def match_part_probability_trace(
 
 
 def match_library(
-    sequence: Sequence, library: Library, threshold: float = 0.1, directionforward=True
+    sequence: Sequence, library: Library, gt_positions:dict = None, threshold: float = 0.1, directionforward=True
 ) -> List[PartCandidate]:
     """
     Match library of parts to a sequence and return candidates that score above the threshold.
 
     :param sequence: Sequence object
     :param library: Library object
+    :param gt_positions: Dict of ground truth positions for each part used to evaluate scoring on simulated sequences. 
     :param threshold:  (Default value = 0.5)
+    :param directionforward: Bool defining whether to match in forward or reverse direction (not reverse complement)
 
     """
     library_candidates = []
     for part in library.parts:
         # print('Library part: ', part)
-        part_candidates = match_part(sequence, part, threshold, directionforward)
+        if gt_positions:
+            start = gt_positions["_".join(sequence.name.split("_")[:5])][part.name][0]
+            end = gt_positions["_".join(sequence.name.split("_")[:5])][part.name][1]                                            
+            part_candidates = score_part_against_ground_truth(sequence, part,start, end, threshold, directionforward)
+        else:
+            part_candidates = match_part(sequence, part, threshold, directionforward)
+        
         if part_candidates:
             library_candidates.append(part_candidates)
     return library_candidates

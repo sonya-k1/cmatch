@@ -25,7 +25,7 @@ current_file = path.basename(__file__).split(".")[0]
 
 
 @timeit
-def match_libs(seq, libs, threshold=0.5, directionforward=True):
+def match_libs(seq, libs, gt_position=None, threshold=0.5, directionforward=True):
     """
     Match libs with the sequence
     """
@@ -37,7 +37,7 @@ def match_libs(seq, libs, threshold=0.5, directionforward=True):
         # threshold = lib["score_threshold"]
         # print('pop: ', pop)       
         # breakpoint()
-        candidates = match_library(seq, Library(lib), threshold, directionforward)
+        candidates = match_library(seq, Library(lib), gt_position, threshold, directionforward)
         cl = []
         for candidate in candidates:
             for c in candidate:
@@ -154,6 +154,41 @@ def iter_all_seq(
         json.dump(r, filename, indent=2, separators=(",", ":"))
 
 
+import pandas as pd
+def extract_ground_truth_positions(parquet_file, direction):
+    """
+    Extracts ground truth start and end positions for each part from the Parquet file.
+
+    Args:
+        parquet_file (str): Path to the Parquet file.
+        direction (str): 'forward' or 'reverse' - defines whether to reverse ground truth data for reversed matching data
+
+    Returns:
+        dict: A dictionary where keys are UIDs and values are dictionaries
+              containing part names as keys and their [start, end, length, sequence_length] positions as values.
+    """
+    df = pd.read_parquet(parquet_file)
+    ground_truth = {}
+    seq_lengths=[]
+    for index, row in df.iterrows():
+        uid = row['UID']
+        annotation = row['Read_Annotation'][::-1] if direction=='reverse' else  row['Read_Annotation']
+        sequence = row['Read_Sequence']
+        seq_lengths.append(len(sequence))
+        if uid not in ground_truth:
+            ground_truth[uid] = {}
+        
+        current_index = 0
+        for part in sorted(list(set(annotation))):  # Iterate through unique parts
+            part_indices = [i for i, annot in enumerate(annotation) if annot == part]
+            if part_indices:
+                start_pos = part_indices[0]  # 0-based indexing
+                end_pos = part_indices[-1] + 1 # Bio pairwise alignment end positions are 
+                # not inclusive so they will be one larger than the ground truth
+                length = end_pos-start_pos
+                ground_truth[uid][part] = [start_pos, end_pos, length, len(sequence)]
+    return ground_truth
+
 def match(template, threshold, overlap, match_results_path,directionforward, *targets):
     """
     Match
@@ -161,11 +196,16 @@ def match(template, threshold, overlap, match_results_path,directionforward, *ta
     # Load JSON template
     with open(template) as json_file:
         template = json.load(json_file)
-    r = []
+    input_match_data_for_reconstruction = []
     error_log = []
+    gt_positions = None
     # continue_reconstruct = False
     # print(targets, threshold)
 
+    ### ------ EXTRACT GROUND TRUTH POSITIONS for scoring evaluation
+    #  gt_positions = extract_ground_truth_positions( 
+    #         "KL_resources/HMM_Reads_8/HMM_reads__weights_1__library_3___Construct_0b184663_7e11_42e4_a2fa_5985f7ddf11a.parquet",
+    #         'forward')
 
     # Matching
     for target in targets:
@@ -180,64 +220,46 @@ def match(template, threshold, overlap, match_results_path,directionforward, *ta
         libs_to_match = libs["construct"]  # name of the fake primer
         # print('libs:  ', libs_to_match)
         
-        matches = match_libs(sq, libs_to_match, threshold=threshold, directionforward=directionforward )
-        # print(f'matches are {matches}')
-        # continue_reconstruct = True  ## Only continue with reconstruction if we have identified each part
-        # for match in matches:
-        #     if match["candidates"]:
-        #         json_to_output["matches"] = matches
-        #         r.append(json_to_output)
-        #         continue
-        #     else:
-        #         error_log.append(f'Match not found for part {match} with threshold ' + str(threshold))
-        #         target_name = sq.name
-        #         continue_reconstruct = False
+        matches = match_libs(sq, libs_to_match, gt_positions, threshold=threshold, directionforward=directionforward )
+        
         json_to_output["matches"] = matches
-        r.append(json_to_output)
+        input_match_data_for_reconstruction.append(json_to_output)
                 
         
         # print('length of matches is: ', len(r)) 
     # breakpoint()   
     # s = json.dumps(r, indent=2, separators=(",", ":"))
-    # total_results = []
+    total_results = []
     # if continue_reconstruct:
     try:
         print('Attempting reconstruct')
-        print('length of input r:', len(r))
+        print('length of input r:', len(input_match_data_for_reconstruction))
 
 
         # with open(f'template_seq_data/kl_constructs/Library1_5_7184/matching_outputs/Library1_5_7184_matching_data_0_9.json', 'w') as f:
         with open(match_results_path, 'w') as f:
-            json.dump(r,f, indent=2, separators=(",", ":"))
+            json.dump(input_match_data_for_reconstruction,f, indent=2, separators=(",", ":"))
         
         ##-------------COMMENTED OUT for no reconstruction--------------------    
-        reconstruction_result, errors = reconstruct(r, overlap=overlap)
+        reconstruction_result, errors = reconstruct(input_match_data_for_reconstruction, overlap=overlap)
         # print(f'Reconstruction result: {reconstruction_result, errors}')
         if errors != []:
             error_log.append(errors)
         # print('error log: ',error_log)
-        # total_results.append(reconstruction_result)
+        total_results.append(reconstruction_result)
         print('length of reconstruction result: ', len(reconstruction_result))
         ss = json.dumps(reconstruction_result, indent=2, separators=(",", ":"))
+        # breakpoint()
         # print("ss", ss)
         ##---------------------------------------------
-        # ss = json.dumps(r)
+        
     except Exception as e:
         print('Unknown error: ', e)
         error_log.append(f'Unknown Error: {e}')
         ss = {}
-        # ss = s
-    # else:
-    #     # ss = s
-    #     failed_match_result = {
-    #                 "target": 'failed reconstruction',
-    #                 "reconstruct": None,
-    #                 "score": 0,
-    #                 "path": None,
-    #             }
-    #     total_results.append(failed_match_result)
+        
     
-    # ss = json.dumps(total_results, indent=2, separators=(",", ":"))
+    ss = json.dumps(total_results, indent=2, separators=(",", ":"))
     errors_json = json.dumps(error_log, indent=2, separators=(",", ":"))
 
     return ss, errors_json
@@ -313,13 +335,13 @@ def main(template, output_path, match_results_path, directionforward, threshold=
     print(f'Number of input targets: {len(targets)} \n Overlap tolerance: ({overlap} bases), Direction Forward: {directionforward}')
     result, error_log = match(template, threshold, overlap, match_results_path, directionforward, *targets)
     # breakpoint()
-    store_match_results(result, output_path,similarity_threshold= threshold, overlap_tolerance=f'{overlap}')
+    store_match_results(result, output_path,similarity_threshold=threshold, overlap_tolerance=f'{overlap}')
 
-   # Plotting used for GFP 3-part construct
+   # Plotting used for simulated sequences of GFP 3-part construct
     # visualise_distribution(result, overlap, plot_individual_parts=True, plot_over_acc_levels=True)
     # plot_3d_multiple_scores(result, overlap, threshold)
     
-    # General plotting
+    # # General plotting
     # visualise_parts(result)
     # plot_error_types(error_log, overlap)
     
