@@ -33,7 +33,7 @@ def extract_data(match_result):
 
     return overall_score, parts_data, errors, overlap_bases
 
-def store_match_results(results_json, parquet_file, similarity_threshold, overlap_tolerance):
+def store_cmatch_results(results_json, parquet_file, similarity_threshold, overlap_tolerance):
     """
     Stores match function output in a Parquet file with additional parameters,
     handling repeated parts by storing them in lists.
@@ -141,4 +141,4 @@ if __name__ == "__main__":
   }
 ]'''
     
-    store_match_results(example_json, "test_results.parquet", 0.8, 0.2)
+    store_cmatch_results(example_json, "test_results.parquet", 0.8, 0.2)

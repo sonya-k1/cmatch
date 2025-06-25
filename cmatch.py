@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from matching import Library, Sequence, match_library
 from visualise import visualise_distribution, plot_error_types, visualise_parts, plot_3d_multiple_scores
-from store_outputs_to_parquet import store_match_results
+from store_outputs_to_parquet import store_cmatch_results
 
 import plac
 
@@ -306,7 +306,7 @@ def remove_duplicates(result_json_str):
 
 
 def str2bool(v):
-    return v.lower() in ("yes", "true", "t", "1")
+    return v.lower() in ("yes", "true", "t", "1", "forward")
 
 
 @plac.pos("template", "JSON construct template. Example: consruct_template.json")
@@ -316,15 +316,17 @@ def str2bool(v):
 @plac.pos("directionforward", f"Set True if sequence is in the forward direction", type=str2bool)
 @plac.pos("match_results_path", f"Output path for match results json file", type=str)
 @plac.pos("targets", f"Target sequence files. Example: Sanger008.seq", type=str)
-def main(template, output_path, match_results_path, directionforward, threshold=0.7, overlap=0, *targets): # Hard coded threshold 
+def main(template, output_path, match_results_path, directionforward, threshold=0.7, overlap=0, *targets): 
     """
     cMatch command line tool
     """
     st.set_page_config(layout="wide")
-    # overlap_pct = 0
-    
-
     start_time = time.time()
+
+    print(f' \n INPUT PARAMETERS \n --------------------\n '
+          f'\tTemplate File: {template} \n \tOutput Reconstruction Results Parquet Path: {output_path}'
+          f'\n \tOutput Match Results Jason Path (including directory): {match_results_path}'
+          f'\n \tDirection Forward: {directionforward} \n \tThreshold: {threshold} \n \tOverlap Tolerance: {overlap}')
 
     
     output_dir = os.path.dirname(match_results_path)
@@ -332,18 +334,18 @@ def main(template, output_path, match_results_path, directionforward, threshold=
     # Create the directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
-    print(f'Number of input targets: {len(targets)} \n Overlap tolerance: ({overlap} bases), Direction Forward: {directionforward}')
+    print(f'Number of input targets: {len(targets)}')
     result, error_log = match(template, threshold, overlap, match_results_path, directionforward, *targets)
     # breakpoint()
-    store_match_results(result, output_path,similarity_threshold=threshold, overlap_tolerance=f'{overlap}')
+    store_cmatch_results(result, output_path,similarity_threshold=threshold, overlap_tolerance=f'{overlap}')
 
    # Plotting used for simulated sequences of GFP 3-part construct
     # visualise_distribution(result, overlap, plot_individual_parts=True, plot_over_acc_levels=True)
     # plot_3d_multiple_scores(result, overlap, threshold)
     
-    # # General plotting
-    # visualise_parts(result)
-    # plot_error_types(error_log, overlap)
+    # General plotting
+    visualise_parts(result)
+    plot_error_types(error_log, overlap)
     
     execution_time = time.time() - start_time
     print(f'Execution Time: {execution_time:.4f} seconds')
